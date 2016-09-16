@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component-configuration
+    xmlns="http://tis.co.jp/nablarch/component-configuration"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://tis.co.jp/nablarch/component-configuration http://tis.co.jp/nablarch/component-configuration.xsd">
+
+  <import file="db-default.xml" />
+
+  <component name="domainManager"
+      class="nablarch.etl.ValidationDomain$ValidationDomainManager"/>
+
+  <component name="英大文字"
+      class="nablarch.core.validation.validator.unicode.RangedCharsetDef">
+    <property name="startCodePoint" value="U+0041"/>
+    <property name="endCodePoint" value="U+005A"/>
+  </component>
+
+  <component name="ひらがな"
+      class="nablarch.core.validation.validator.unicode.RangedCharsetDef">
+    <property name="startCodePoint" value="U+3042"/>
+    <property name="endCodePoint" value="U+3093"/>
+  </component>
+
+  <component name="messageInterpolator"
+      class="org.hibernate.validator.messageinterpolation.ResourceBundleMessageInterpolator"/>
+
+</component-configuration>

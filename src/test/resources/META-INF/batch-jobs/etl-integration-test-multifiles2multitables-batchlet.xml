@@ -1,0 +1,47 @@
+<job id="multifiles2multitables-batchlet" xmlns="http://xmlns.jcp.org/xml/ns/javaee" version="1.0">
+
+  <listeners>
+    <listener ref="nablarchJobListenerExecutor">
+      <properties>
+        <property name="diConfigFilePath" value="nablarch/etl/integration/batch-boot.xml" />
+      </properties>
+    </listener>
+  </listeners>
+
+  <step id="extract-file1" next="extract-file2">
+    <batchlet ref="sqlLoaderBatchlet" />
+  </step>
+
+  <step id="extract-file2" next="validation-file1">
+    <batchlet ref="sqlLoaderBatchlet" />
+  </step>
+
+  <step id="validation-file1" next="validation-file2">
+    <listeners>
+      <listener ref="nablarchStepListenerExecutor" />
+    </listeners>
+    <batchlet ref="validationBatchlet" />
+  </step>
+
+  <step id="validation-file2" next="load-table1">
+    <listeners>
+      <listener ref="nablarchStepListenerExecutor" />
+    </listeners>
+    <batchlet ref="validationBatchlet" />
+  </step>
+
+  <step id="load-table1" next="load-table2">
+    <listeners>
+      <listener ref="nablarchStepListenerExecutor" />
+    </listeners>
+    <batchlet ref="deleteInsertBatchlet" />
+  </step>
+
+  <step id="load-table2">
+    <listeners>
+      <listener ref="nablarchStepListenerExecutor" />
+    </listeners>
+    <batchlet ref="deleteInsertBatchlet" />
+  </step>
+
+</job>

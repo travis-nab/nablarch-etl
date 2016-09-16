@@ -1,0 +1,76 @@
+<job id="multifiles2multitables-chunk" xmlns="http://xmlns.jcp.org/xml/ns/javaee" version="1.0">
+
+  <listeners>
+    <listener ref="nablarchJobListenerExecutor">
+      <properties>
+        <property name="diConfigFilePath" value="nablarch/etl/integration/batch-boot.xml" />
+      </properties>
+    </listener>
+  </listeners>
+
+  <step id="truncate" next="extract-file1">
+    <listeners>
+      <listener ref="nablarchStepListenerExecutor" />
+    </listeners>
+    <batchlet ref="tableCleaningBatchlet" />
+  </step>
+
+  <step id="extract-file1" next="extract-file2">
+    <listeners>
+      <listener ref="nablarchStepListenerExecutor" />
+      <listener ref="nablarchItemWriteListenerExecutor" />
+    </listeners>
+    <chunk item-count="1000">
+      <reader ref="fileItemReader" />
+      <writer ref="databaseItemWriter" />
+    </chunk>
+  </step>
+
+  <step id="extract-file2" next="validation-file1">
+    <listeners>
+      <listener ref="nablarchStepListenerExecutor" />
+      <listener ref="nablarchItemWriteListenerExecutor" />
+    </listeners>
+    <chunk item-count="1000">
+      <reader ref="fileItemReader" />
+      <writer ref="databaseItemWriter" />
+    </chunk>
+  </step>
+
+  <step id="validation-file1" next="validation-file2">
+    <listeners>
+      <listener ref="nablarchStepListenerExecutor" />
+    </listeners>
+    <batchlet ref="validationBatchlet" />
+  </step>
+
+  <step id="validation-file2" next="load1">
+    <listeners>
+      <listener ref="nablarchStepListenerExecutor" />
+    </listeners>
+    <batchlet ref="validationBatchlet" />
+  </step>
+
+  <step id="load1" next="load2">
+    <listeners>
+      <listener ref="nablarchStepListenerExecutor" />
+      <listener ref="nablarchItemWriteListenerExecutor" />
+    </listeners>
+    <chunk item-count="1000">
+      <reader ref="databaseItemReader" />
+      <writer ref="databaseItemWriter" />
+    </chunk>
+  </step>
+
+  <step id="load2">
+    <listeners>
+      <listener ref="nablarchStepListenerExecutor" />
+      <listener ref="nablarchItemWriteListenerExecutor" />
+    </listeners>
+    <chunk item-count="1000">
+      <reader ref="databaseItemReader" />
+      <writer ref="databaseItemWriter" />
+    </chunk>
+  </step>
+
+</job>

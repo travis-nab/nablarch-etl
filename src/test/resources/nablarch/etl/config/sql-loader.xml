@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component-configuration
+        xmlns="http://tis.co.jp/nablarch/component-configuration"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://tis.co.jp/nablarch/component-configuration /component-configuration.xsd">
+
+  <component name="sqlLoader" class="nablarch.core.db.statement.BasicSqlLoader">
+    <property name="fileEncoding" value="utf-8"/>
+    <property name="extension" value="sql"/>
+  </component>
+
+</component-configuration>

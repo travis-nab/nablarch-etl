@@ -1,0 +1,34 @@
+<job id="job1" xmlns="http://xmlns.jcp.org/xml/ns/javaee" version="1.0">
+
+  <listeners>
+    <listener ref="nablarchJobListenerExecutor">
+      <properties>
+        <property name="diConfigFilePath" value="nablarch/etl/config/config-integration-test.xml" />
+      </properties>
+    </listener>
+  </listeners>
+
+  <step id="truncate" next="step1">
+    <batchlet ref="testTruncateBatchlet" />
+  </step>
+
+  <step id="step1" next="validationStep">
+    <batchlet ref="testBatchlet" />
+  </step>
+
+  <step id="validationStep" next="step2">
+    <batchlet ref="testValidationBatchlet" />
+  </step>
+  
+  <step id="step2" next="step3">
+    <chunk>
+      <reader ref="testItemReader" />
+      <writer ref="testItemWriter" />
+    </chunk>
+  </step>
+
+  <step id="step3">
+    <batchlet ref="testBatchlet" />
+  </step>
+
+</job>

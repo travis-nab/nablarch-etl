@@ -1,0 +1,1 @@
+sqlplus ssd/ssd@xe @createTable.sql

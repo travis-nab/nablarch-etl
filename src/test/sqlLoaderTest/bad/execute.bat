@@ -1,0 +1,1 @@
+SQLLDR USERID=ssd/ssd@xe CONTROL=control.ctl DATA=data.csv BAD=control.bad LOG=control.log SILENT=(HEADER,FEEDBACK)

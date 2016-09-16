@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component-configuration
+    xmlns="http://tis.co.jp/nablarch/component-configuration"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://tis.co.jp/nablarch/component-configuration http://tis.co.jp/nablarch/component-configuration">
+
+  <component name="dataSource" class="oracle.jdbc.pool.OracleDataSource">
+    <property name="URL" value="jdbc:oracle:thin:@localhost:1521/xe" />
+    <property name="User" value="${db.user}" />
+    <property name="Password" value="${db.password}" />
+  </component>
+
+</component-configuration>
