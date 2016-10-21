@@ -1,5 +1,5 @@
 group = 'com.nablarch.framework'
-version = '1.0.1'
+version = '1.0.2'
 description = 'ETL機能を実現する'
 
 buildscript {
@@ -23,8 +23,8 @@ apply plugin: 'eclipse'
 apply plugin: 'cobertura'
 
 // ビルド時のJavaバージョンを指定する
-sourceCompatibility=JavaVersion.VERSION_1_7
-targetCompatibility=JavaVersion.VERSION_1_7
+sourceCompatibility=JavaVersion.VERSION_1_6
+targetCompatibility=JavaVersion.VERSION_1_6
 
 dependencies {
   provided 'javax.inject:javax.inject:1'
