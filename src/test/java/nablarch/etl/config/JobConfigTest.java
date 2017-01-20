@@ -1,68 +1,92 @@
 package nablarch.etl.config;
 
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
 
-import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 
+import mockit.Expectations;
+import mockit.Mocked;
+import org.hamcrest.Matchers;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 /**
  * {@link JobConfig}のテスト。
  */
 public class JobConfigTest {
 
-    // 正常な設定値
-    private final String jobId = "job1";
-    private final File inputFileBasePath = new File("/job/input");
-    private final File  outputFileBasePath = new File("/job/output");
-    private final File controlFileBasePath = new File("/job/control");
-    private final File logFileBasePath = new File("/job/log");
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
-    private RootConfig config = new RootConfig() {{
-        setInputFileBasePath(new File("/base/input"));
-        setOutputFileBasePath(new File("/base/output"));
-        setSqlLoaderControlFileBasePath(new File("/base/control"));
-        setSqlLoaderOutputFileBasePath(new File("/base/log"));
-    }};
+    @Mocked
+    private StepConfig stepConfig;
+
+    private final JobConfig sut = new JobConfig();
 
     /**
-     * {@link JobConfig}でファイルベースパスが指定されない場合、
-     * {@link RootConfig}のファイルベースパスが使われること。
+     * 初期化時に{@link StepConfig#initialize()}が呼ばれていること。
      */
     @Test
-    public void testDefaultFileBasePath() {
+    public void testInitialize() throws Exception {
+        Map<String, StepConfig> steps = new HashMap<String, StepConfig>();
+        steps.put("hoge", stepConfig);
+        sut.setSteps(steps);
 
-        JobConfig sut = new JobConfig() {{
-            setJobId(jobId);
+        new Expectations(){{
+            stepConfig.initialize();
         }};
-        sut.initialize(config);
-
-        assertThat(sut.getInputFileBasePath(), is(new File("/base/input")));
-        assertThat(sut.getOutputFileBasePath(), is(new File("/base/output")));
-        assertThat(sut.getSqlLoaderControlFileBasePath(), is(new File("/base/control")));
-        assertThat(sut.getSqlLoaderOutputFileBasePath(), is(new File("/base/log")));
+        sut.initialize();
     }
 
     /**
-     * {@link JobConfig}でファイルベースパスが指定された場合、
-     * {@link RootConfig}のファイルベースパスが使われないこと。
+     * {@link StepConfig}が設定されていること。
      */
     @Test
-    public void testOverrideFileBasePath() {
+    public void testSteps() throws Exception {
+        Map<String, StepConfig> steps = new HashMap<String, StepConfig>();
+        steps.put("hoge", stepConfig);
+        sut.setSteps(steps);
 
-        JobConfig sut = new JobConfig() {{
-            setJobId(jobId);
-            setInputFileBasePath(inputFileBasePath);
-            setOutputFileBasePath(outputFileBasePath);
-            setSqlLoaderControlFileBasePath(controlFileBasePath);
-            setSqlLoaderOutputFileBasePath(logFileBasePath);
-        }};
-        sut.initialize(config);
+        assertThat(sut.getSteps(), Matchers.hasEntry("hoge", stepConfig));
+    }
 
-        assertThat(sut.getInputFileBasePath(), is(new File("/job/input")));
-        assertThat(sut.getOutputFileBasePath(), is(new File("/job/output")));
-        assertThat(sut.getSqlLoaderControlFileBasePath(), is(new File("/job/control")));
-        assertThat(sut.getSqlLoaderOutputFileBasePath(), is(new File("/job/log")));
+    /**
+     * 設定した{@link StepConfig}が取れること。
+     */
+    @Test
+    public void testGetStepConfig() throws Exception {
+        Map<String, StepConfig> steps = new HashMap<String, StepConfig>();
+        steps.put("hoge", stepConfig);
+        sut.setSteps(steps);
+
+        assertThat(sut.getStepConfig("sample", "hoge"), is(stepConfig));
+    }
+
+    /**
+     * 設定した{@link StepConfig}が{@code null}だった場合、エラーを送出すること。
+     */
+    @Test
+    public void testGetStepConfigNullError() throws Exception {
+        Map<String, StepConfig> steps = new HashMap<String, StepConfig>();
+        steps.put("hoge", null);
+        sut.setSteps(steps);
+
+        expectedException.expect(IllegalStateException.class);
+        expectedException.expectMessage("step configuration was not found. jobId = [sample], stepId = [hoge]");
+        sut.getStepConfig("sample", "hoge");
+    }
+
+    /**
+     * 設定していない{@link StepConfig}を取得しようとした場合、エラーを送出すること。
+     */
+    @Test
+    public void testGetStepConfigNotSettingError() throws Exception {
+        expectedException.expect(IllegalStateException.class);
+        expectedException.expectMessage("step configuration was not found. jobId = [sample], stepId = [hoge]");
+
+        sut.getStepConfig("sample", "hoge");
     }
 }

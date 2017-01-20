@@ -1,11 +1,11 @@
 package nablarch.etl.config.app;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.core.IsNull.notNullValue;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
-
-import java.io.File;
+import nablarch.etl.BasePath;
+import nablarch.etl.config.DbToFileStepConfig;
+import nablarch.etl.config.EtlConfig;
+import nablarch.etl.config.FileToDbStepConfig;
+import nablarch.etl.config.PathConfig;
+import nablarch.etl.config.StepConfig;
 
 import javax.batch.api.AbstractBatchlet;
 import javax.batch.runtime.context.JobContext;
@@ -13,15 +13,16 @@ import javax.batch.runtime.context.StepContext;
 import javax.enterprise.context.Dependent;
 import javax.inject.Inject;
 import javax.inject.Named;
+import java.io.File;
 
-import nablarch.etl.config.ConfigIntegrationTest;
-import nablarch.etl.config.DbToFileStepConfig;
-import nablarch.etl.config.EtlConfig;
-import nablarch.etl.config.FileToDbStepConfig;
-import nablarch.etl.config.RootConfig;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.core.IsNull.notNullValue;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+
 
 /**
- * {@link ConfigIntegrationTest}で使用する{@link javax.batch.api.Batchlet}。
+ * {@link nablarch.etl.config.ConfigIntegrationTest}で使用する{@link javax.batch.api.Batchlet}。
  */
 @Named
 @Dependent
@@ -35,7 +36,23 @@ public class TestBatchlet extends AbstractBatchlet {
 
     @EtlConfig
     @Inject
-    private RootConfig etlConfig;
+    private StepConfig stepConfig;
+
+    @PathConfig(BasePath.INPUT)
+    @Inject
+    private File inputFileBasePath;
+
+    @PathConfig(BasePath.OUTPUT)
+    @Inject
+    private File outputFileBasePath;
+
+    @PathConfig(BasePath.SQLLOADER_CONTROL)
+    @Inject
+    private File sqlLoaderControlFileBasePath;
+
+    @PathConfig(BasePath.SQLLOADER_OUTPUT)
+    @Inject
+    private File sqlLoaderOutputFileBasePath;
 
     @Override
     public String process() {
@@ -45,20 +62,22 @@ public class TestBatchlet extends AbstractBatchlet {
 
         if ("step1".equals(stepId)) {
 
-            FileToDbStepConfig config = etlConfig.getStepConfig(jobId, stepId);
+            FileToDbStepConfig config = (FileToDbStepConfig) stepConfig;
             assertThat(config, is(notNullValue()));
             assertThat(config.getBean().getName(), is(TestDto.class.getName()));
-            assertThat(config.getFile(), is(new File("base/input/test-input.csv")));
-            assertThat(config.getSqlLoaderControlFileBasePath(), is(new File("base/control")));
-            assertThat(config.getSqlLoaderOutputFileBasePath(), is(new File("base/log")));
+            assertThat(inputFileBasePath, is(new File("base/input")));
+            assertThat(config.getFileName(), is("test-input.csv"));
+            assertThat(sqlLoaderControlFileBasePath, is(new File("base/control")));
+            assertThat(sqlLoaderOutputFileBasePath, is(new File("base/log")));
 
         } else if ("step3".equals(stepId)) {
 
-            DbToFileStepConfig config = etlConfig.getStepConfig(jobId, stepId);
+            DbToFileStepConfig config = (DbToFileStepConfig) stepConfig;
             assertThat(config, is(notNullValue()));
             assertThat(config.getBean().getName(), is(TestDto3.class.getName()));
             assertThat(config.getSqlId(), is("SELECT_TEST3"));
-            assertThat(config.getFile(), is(new File("base/output/test-output.csv")));
+            assertThat(outputFileBasePath, is(new File("base/output")));
+            assertThat(config.getFileName(), is("test-output.csv"));
 
         } else {
             fail("not happen");

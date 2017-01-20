@@ -1,9 +1,20 @@
 package nablarch.etl;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import mockit.Deencapsulation;
+import mockit.Expectations;
+import mockit.Mocked;
+import mockit.NonStrictExpectations;
+import nablarch.common.databind.csv.Csv;
+import nablarch.core.repository.SystemRepository;
+import nablarch.etl.config.DbToFileStepConfig;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import javax.batch.runtime.context.JobContext;
+import javax.batch.runtime.context.StepContext;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -12,24 +23,9 @@ import java.io.Reader;
 import java.util.Arrays;
 import java.util.List;
 
-import javax.batch.runtime.context.JobContext;
-import javax.batch.runtime.context.StepContext;
-
-import mockit.Deencapsulation;
-import mockit.Expectations;
-import mockit.Mocked;
-import mockit.NonStrictExpectations;
-import nablarch.common.databind.csv.Csv;
-import nablarch.core.repository.SystemRepository;
-import nablarch.etl.config.DbToFileStepConfig;
-import nablarch.etl.config.JobConfig;
-import nablarch.etl.config.RootConfig;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 /**
  * {@link FileItemWriter}のテストクラス。
@@ -49,13 +45,7 @@ public class FileItemWriterTest {
     private StepContext mockStepContext;
 
     @Mocked
-    private RootConfig mockEtlConfig;
-
-    @Mocked
     private DbToFileStepConfig mockDbToFileStepConfig;
-
-    @Mocked
-    private JobConfig mockJobConfig;
 
     @Before
     public void setUp() {
@@ -68,12 +58,10 @@ public class FileItemWriterTest {
             result = "test-step";
             mockJobContext.getJobName();
             result = "test-job";
-            mockEtlConfig.getStepConfig("test-job", "test-step");
-            result = mockDbToFileStepConfig;
         }};
         Deencapsulation.setField(sut, "jobContext", mockJobContext);
         Deencapsulation.setField(sut, "stepContext", mockStepContext);
-        Deencapsulation.setField(sut, "etlConfig", mockEtlConfig);
+        Deencapsulation.setField(sut, "stepConfig", mockDbToFileStepConfig);
     }
 
     @After
@@ -101,33 +89,11 @@ public class FileItemWriterTest {
             assertThat(e.getMessage(), is("bean is required. jobId = [test-job], stepId = [test-step]"));
         }
 
-        // outputFileBasePath
-
-        new Expectations() {{
-            mockDbToFileStepConfig.getBean();
-            result = EtlFileItemWriterBean.class;
-            mockDbToFileStepConfig.getJobConfig();
-            result = mockJobConfig;
-            mockJobConfig.getOutputFileBasePath();
-            result = null;
-        }};
-
-        try {
-            sut.open(null);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("outputFileBasePath is required. jobId = [test-job], stepId = [test-step]"));
-        }
-
         // fileName
 
         new Expectations() {{
             mockDbToFileStepConfig.getBean();
             result = EtlFileItemWriterBean.class;
-            mockDbToFileStepConfig.getJobConfig();
-            result = mockJobConfig;
-            mockJobConfig.getOutputFileBasePath();
-            result = folder.newFile();
             mockDbToFileStepConfig.getFileName();
             result = null;
         }};
@@ -146,7 +112,9 @@ public class FileItemWriterTest {
     @Test
     public void testWriteSingleRecord() throws Exception {
 
-        final File output = folder.newFile();
+        final File outputFileBasePath = folder.newFolder();
+        final File output = new File(outputFileBasePath, "dummy");
+        Deencapsulation.setField(sut, "outputFileBasePath", outputFileBasePath);
 
         // -------------------------------------------------- setup objects that is injected
         new Expectations() {{
@@ -154,8 +122,6 @@ public class FileItemWriterTest {
             result = EtlFileItemWriterBean.class;
             mockDbToFileStepConfig.getFileName();
             result = "dummy";
-            mockDbToFileStepConfig.getFile();
-            result = output;
         }};
 
         List<Object> dbData = Arrays.<Object>asList(
@@ -178,7 +144,9 @@ public class FileItemWriterTest {
     @Test
     public void testWriteMultiRecords() throws Exception {
 
-        final File output = folder.newFile();
+        final File outputFileBasePath = folder.newFolder();
+        final File output = new File(outputFileBasePath, "dummy");
+        Deencapsulation.setField(sut, "outputFileBasePath", outputFileBasePath);
 
         // -------------------------------------------------- setup objects that is injected
         new Expectations() {{
@@ -186,8 +154,6 @@ public class FileItemWriterTest {
             result = EtlFileItemWriterBean.class;
             mockDbToFileStepConfig.getFileName();
             result = "dummy";
-            mockDbToFileStepConfig.getFile();
-            result = output;
         }};
 
         List<Object> dbData = Arrays.<Object>asList(
@@ -216,7 +182,8 @@ public class FileItemWriterTest {
     @Test(expected = RuntimeException.class)
     public void testClose() throws Exception {
 
-        final File output = folder.newFile();
+        final File outputFileBasePath = folder.newFolder();
+        Deencapsulation.setField(sut, "outputFileBasePath", outputFileBasePath);
 
         // -------------------------------------------------- setup objects that is injected
         new Expectations() {{
@@ -224,8 +191,6 @@ public class FileItemWriterTest {
             result = EtlFileItemWriterBean.class;
             mockDbToFileStepConfig.getFileName();
             result = "dummy";
-            mockDbToFileStepConfig.getFile();
-            result = output;
         }};
 
         List<Object> dbData = Arrays.<Object>asList(
@@ -257,8 +222,10 @@ public class FileItemWriterTest {
      */
     @Test(expected = FileNotFoundException.class)
     public void testOutputFileCanNotWrite() throws Exception {
-
-        final File output = folder.newFile();
+        final File outputFileBasePath = folder.newFolder();
+        final File output = new File(outputFileBasePath, "dummy");
+        output.createNewFile();
+        Deencapsulation.setField(sut, "outputFileBasePath", outputFileBasePath);
 
         // -------------------------------------------------- setup objects that is injected
         new Expectations() {{
@@ -266,8 +233,6 @@ public class FileItemWriterTest {
             result = EtlFileItemWriterBean.class;
             mockDbToFileStepConfig.getFileName();
             result = "dummy";
-            mockDbToFileStepConfig.getFile();
-            result = output;
         }};
 
         // ファイルを読み取り専用にする

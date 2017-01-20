@@ -4,7 +4,8 @@ import nablarch.core.repository.SystemRepository;
 import nablarch.core.util.FileUtil;
 import nablarch.etl.config.EtlConfig;
 import nablarch.etl.config.FileToDbStepConfig;
-import nablarch.etl.config.RootConfig;
+import nablarch.etl.config.PathConfig;
+import nablarch.etl.config.StepConfig;
 
 import javax.batch.api.AbstractBatchlet;
 import javax.batch.runtime.context.JobContext;
@@ -12,7 +13,6 @@ import javax.batch.runtime.context.StepContext;
 import javax.enterprise.context.Dependent;
 import javax.inject.Inject;
 import javax.inject.Named;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,7 +46,22 @@ public class SqlLoaderBatchlet extends AbstractBatchlet {
     /** ETLの設定 */
     @EtlConfig
     @Inject
-    private RootConfig etlConfig;
+    private StepConfig stepConfig;
+
+    /** 入力ファイルのベースパス */
+    @PathConfig(BasePath.INPUT)
+    @Inject
+    private File inputFileBasePath;
+
+    /** SQLLoaderに使用するコントロールファイルのベースパス */
+    @PathConfig(BasePath.SQLLOADER_CONTROL)
+    @Inject
+    private File sqlLoaderControlFileBasePath;
+
+    /** SQLLoaderが出力するファイルのベースパス */
+    @PathConfig(BasePath.SQLLOADER_OUTPUT)
+    @Inject
+    private File sqlLoaderOutputFileBasePath;
 
     /**
      * SQL*Loaderを実行してCSVファイルのデータをワークテーブルに一括登録する。
@@ -64,22 +79,14 @@ public class SqlLoaderBatchlet extends AbstractBatchlet {
         final String jobId = jobContext.getJobName();
         final String stepId = stepContext.getStepName();
 
-        final FileToDbStepConfig config = etlConfig.getStepConfig(jobId, stepId);
+        final FileToDbStepConfig config = (FileToDbStepConfig) stepConfig;
 
-        EtlUtil.verifyRequired(jobId, stepId, "sqlLoaderControlFileBasePath",
-                                config.getSqlLoaderControlFileBasePath());
-        EtlUtil.verifyRequired(jobId, stepId, "sqlLoaderOutputFileBasePath",
-                                config.getSqlLoaderOutputFileBasePath());
-        EtlUtil.verifyRequired(jobId, stepId, "inputFileBasePath",
-                                config.getJobConfig().getInputFileBasePath());
         EtlUtil.verifyRequired(jobId, stepId, "fileName", config.getFileName());
         EtlUtil.verifyRequired(jobId, stepId, "bean", config.getBean());
 
-        final File sqlLoaderOutputFileBasePath = config.getSqlLoaderOutputFileBasePath();
-
         final String ctlFileName = config.getBean().getSimpleName();
-        final String ctlFile = new File(config.getSqlLoaderControlFileBasePath(), ctlFileName + ".ctl").getPath();
-        final String dataFile = config.getFile().getPath();
+        final String ctlFile = new File(sqlLoaderControlFileBasePath, ctlFileName + ".ctl").getPath();
+        final String dataFile = new File(inputFileBasePath, config.getFileName()).getPath();
         final String badFile = new File(sqlLoaderOutputFileBasePath, ctlFileName + ".bad").getPath();
         final String logFile = new File(sqlLoaderOutputFileBasePath, ctlFileName + ".log").getPath();
 
