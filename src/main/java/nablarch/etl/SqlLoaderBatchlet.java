@@ -1,11 +1,8 @@
 package nablarch.etl;
 
-import nablarch.core.repository.SystemRepository;
-import nablarch.core.util.FileUtil;
-import nablarch.etl.config.EtlConfig;
-import nablarch.etl.config.FileToDbStepConfig;
-import nablarch.etl.config.PathConfig;
-import nablarch.etl.config.StepConfig;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 
 import javax.batch.api.AbstractBatchlet;
 import javax.batch.runtime.context.JobContext;
@@ -13,9 +10,17 @@ import javax.batch.runtime.context.StepContext;
 import javax.enterprise.context.Dependent;
 import javax.inject.Inject;
 import javax.inject.Named;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+
+import nablarch.core.log.basic.LogLevel;
+import nablarch.core.log.operation.OperationLogger;
+import nablarch.core.message.MessageLevel;
+import nablarch.core.message.MessageUtil;
+import nablarch.core.repository.SystemRepository;
+import nablarch.core.util.FileUtil;
+import nablarch.etl.config.EtlConfig;
+import nablarch.etl.config.FileToDbStepConfig;
+import nablarch.etl.config.PathConfig;
+import nablarch.etl.config.StepConfig;
 
 /**
  * SQL*Loaderを用いてCSVファイルのデータをワークテーブルに登録する{@link javax.batch.api.Batchlet}の実装クラス。
@@ -86,11 +91,17 @@ public class SqlLoaderBatchlet extends AbstractBatchlet {
 
         final String ctlFileName = config.getBean().getSimpleName();
         final String ctlFile = new File(sqlLoaderControlFileBasePath, ctlFileName + ".ctl").getPath();
-        final String dataFile = new File(inputFileBasePath, config.getFileName()).getPath();
+        final File dataFile = new File(inputFileBasePath, config.getFileName());
         final String badFile = new File(sqlLoaderOutputFileBasePath, ctlFileName + ".bad").getPath();
         final String logFile = new File(sqlLoaderOutputFileBasePath, ctlFileName + ".log").getPath();
 
-        SqlLoaderRunner runner = new SqlLoaderRunner(user, password, databaseName, ctlFile, dataFile, badFile, logFile);
+        if (!dataFile.isFile()) {
+            OperationLogger.write(LogLevel.ERROR,
+                    MessageUtil.createMessage(MessageLevel.ERROR, "nablarch.etl.input-file-not-found", dataFile.getAbsoluteFile()).formatMessage());
+            return "FAILED";
+        }
+
+        SqlLoaderRunner runner = new SqlLoaderRunner(user, password, databaseName, ctlFile, dataFile.getPath(), badFile, logFile);
         runner.execute();
 
         if (!runner.isSuccess()) {

@@ -1,23 +1,30 @@
 package nablarch.etl;
 
-import nablarch.common.databind.ObjectMapper;
-import nablarch.common.databind.ObjectMapperFactory;
-import nablarch.etl.config.DbToFileStepConfig;
-import nablarch.etl.config.EtlConfig;
-import nablarch.etl.config.PathConfig;
-import nablarch.etl.config.StepConfig;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.List;
 
 import javax.batch.api.chunk.AbstractItemWriter;
+import javax.batch.operations.BatchRuntimeException;
 import javax.batch.runtime.context.JobContext;
 import javax.batch.runtime.context.StepContext;
 import javax.enterprise.context.Dependent;
 import javax.inject.Inject;
 import javax.inject.Named;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.Serializable;
-import java.util.List;
+
+import nablarch.common.databind.ObjectMapper;
+import nablarch.common.databind.ObjectMapperFactory;
+import nablarch.core.log.basic.LogLevel;
+import nablarch.core.log.operation.OperationLogger;
+import nablarch.core.message.MessageLevel;
+import nablarch.core.message.MessageUtil;
+import nablarch.etl.config.DbToFileStepConfig;
+import nablarch.etl.config.EtlConfig;
+import nablarch.etl.config.PathConfig;
+import nablarch.etl.config.StepConfig;
 
 /**
  * ファイルにデータを書き込む{@link javax.batch.api.chunk.ItemWriter}の実装クラス。
@@ -61,8 +68,17 @@ public class FileItemWriter extends AbstractItemWriter {
         EtlUtil.verifyRequired(jobId, stepId, "bean", config.getBean());
         EtlUtil.verifyRequired(jobId, stepId, "fileName", config.getFileName());
 
-        mapper = (ObjectMapper<Object>) ObjectMapperFactory.create(
-                        config.getBean(), new FileOutputStream(new File(outputFileBasePath, config.getFileName())));
+        final File outputFile = new File(outputFileBasePath, config.getFileName());
+        try {
+            mapper = (ObjectMapper<Object>) ObjectMapperFactory.create(
+                    config.getBean(), new FileOutputStream(outputFile));
+        } catch (FileNotFoundException e) {
+            final String message = MessageUtil.createMessage(
+                    MessageLevel.ERROR, "nablarch.etl.invalid-output-file-path", outputFile.getAbsolutePath())
+                                              .formatMessage();
+            OperationLogger.write(LogLevel.ERROR, message);
+            throw new BatchRuntimeException(message, e);
+        }
 
         super.open(checkpoint);
     }
