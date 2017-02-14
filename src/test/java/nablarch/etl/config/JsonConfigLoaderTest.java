@@ -1,71 +1,154 @@
 package nablarch.etl.config;
 
+import mockit.Expectations;
+import mockit.Mocked;
+import nablarch.core.repository.SystemRepository;
+import nablarch.core.repository.di.DiContainer;
+import nablarch.core.repository.di.config.xml.XmlComponentDefinitionLoader;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+
+import javax.batch.runtime.context.JobContext;
+
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
-
-import java.io.File;
-
-import org.junit.Test;
 
 /**
  * {@link JsonConfigLoader}のテスト。
  */
 public class JsonConfigLoaderTest {
 
+    private JsonConfigLoader sut = new JsonConfigLoader();
+
+    @Mocked
+    JobContext mockJobContext;
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
     /**
-     * デフォルトのパスに配置した設定ファイルがロードできること。
+     * META-INF/etl-config/(JOB_ID).jsonの設定ファイルが読み込まれること。
      */
     @Test
-    public void testDefaultPath() {
+    public void testDefaultPath() throws Exception {
+        new Expectations() {{
+            mockJobContext.getJobName();
+            result = "root-config-test-job1";
+        }};
 
-        JsonConfigLoader sut = new JsonConfigLoader();
+        JobConfig config = sut.load(mockJobContext);
 
-        RootConfig config = sut.load();
-
-        assertThat(config.getInputFileBasePath(), is(new File("base/input")));
+        assertThat(config.getSteps().get("step1"), is(instanceOf(StepConfig.class)));
+        assertThat(config.getSteps().get("step2"), is(instanceOf(StepConfig.class)));
+        assertThat(config.getSteps().get("step3"), is(instanceOf(StepConfig.class)));
     }
 
     /**
-     * 指定されたパスに配置された設定ファイルがロードできること。
+     * 設定ファイルの配置ディレクトリ(クラスパス指定)を変更しても読み込めること。
      */
     @Test
-    public void testSpecifiedPath() {
+    public void testChangeClassPath() throws Exception {
+        new Expectations() {{
+            mockJobContext.getJobName();
+            result = "root-config-test-job1";
+        }};
 
-        JsonConfigLoader sut = new JsonConfigLoader();
-        sut.setConfigPath("nablarch/etl/config/etl-normal.json");
+        sut.setConfigBasePath("classpath:META-INF/etl-test-config/");
+        JobConfig config = sut.load(mockJobContext);
 
-        RootConfig config = sut.load();
-
-        assertThat(config.getInputFileBasePath(), is(new File("specified/input")));
+        assertThat(config.getSteps().get("step1"), is(instanceOf(StepConfig.class)));
+        assertThat(config.getSteps().get("step2"), is(instanceOf(StepConfig.class)));
+        assertThat(config.getSteps().get("step3"), is(instanceOf(StepConfig.class)));
     }
 
     /**
-     * ロードに失敗した場合、例外が送出されること。
+     * 設定ファイルの配置ディレクトリ(ファイル指定)を変更しても読み込めること。
      */
     @Test
-    public void testLoadingFailed() {
+    public void testChangeFilePath() throws Exception {
+        new Expectations() {{
+            mockJobContext.getJobName();
+            result = "root-config-test-job1";
+        }};
 
-        // 存在しないパス
-        JsonConfigLoader sut = new JsonConfigLoader();
-        sut.setConfigPath("/hoge/unknown.json");
+        sut.setConfigBasePath("file:src/test/resources/etl-test-config/");
+        JobConfig config = sut.load(mockJobContext);
 
-        try {
-            sut.load();
-            fail();
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("failed to load etl config file. file = [/hoge/unknown.json]"));
-        }
+        assertThat(config.getSteps().get("step1"), is(instanceOf(StepConfig.class)));
+        assertThat(config.getSteps().get("step2"), is(instanceOf(StepConfig.class)));
+        assertThat(config.getSteps().get("step3"), is(instanceOf(StepConfig.class)));
+    }
 
-        // フォーマットエラー
-        sut = new JsonConfigLoader();
-        sut.setConfigPath("nablarch/etl/config/etl-error.json");
+    /**
+     * ファイルのフォーマットが間違っている場合、例外が送出されること。
+     */
+    @Test
+    public void testLoadingFailedJsonFileFormatError() {
+        new Expectations(){{
+            mockJobContext.getJobName();
+            result = "etl-error";
+        }};
 
-        try {
-            sut.load();
-            fail();
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("failed to load etl config file. file = [nablarch/etl/config/etl-error.json]"));
-        }
+        expectedException.expect(IllegalStateException.class);
+        expectedException.expectMessage("failed to load etl config file. file = [classpath:META-INF/etl-config/etl-error.json]");
+
+        sut.load(mockJobContext);
+    }
+
+    /**
+     * ファイルが見つからない場合、例外が送出されること。
+     */
+    @Test
+    public void testLoadingFailedNotFoundJsonFile() throws Exception {
+        new Expectations(){{
+            mockJobContext.getJobName();
+            result = "unknown";
+        }};
+
+        expectedException.expect(IllegalStateException.class);
+        expectedException.expectMessage("failed to load etl config file. file = [classpath:META-INF/etl-config/unknown.json]");
+
+        sut.load(mockJobContext);
+    }
+
+    /**
+     * 共通項目の設定がjsonファイルにあると例外を送出すること。
+     */
+    @Test
+    public void testLoadingCommonSetting() throws Exception {
+        new Expectations(){{
+            mockJobContext.getJobName();
+            result = "etl-error-common-setting";
+        }};
+
+        expectedException.expect(IllegalStateException.class);
+        expectedException.expectMessage("failed to load etl config file. file = [classpath:META-INF/etl-config/etl-error-common-setting.json]");
+
+        sut.load(mockJobContext);
+    }
+
+    /**
+     * コンポーネント設定ファイルから設定ファイルのベースパスを変更できること。
+     */
+    @Test
+    public void testLoadingFromComponentFile() throws Exception {
+        XmlComponentDefinitionLoader loader = new XmlComponentDefinitionLoader("nablarch/etl/config/config-initialize-change-path.xml");
+        DiContainer container = new DiContainer(loader);
+        SystemRepository.load(container);
+
+        new Expectations() {{
+            mockJobContext.getJobName();
+            result = "root-config-test-job1";
+        }};
+
+        JobConfig config = sut.load(mockJobContext);
+
+        assertThat(config.getSteps().get("step1"), is(instanceOf(StepConfig.class)));
+        assertThat(config.getSteps().get("step2"), is(instanceOf(StepConfig.class)));
+        assertThat(config.getSteps().get("step3"), is(instanceOf(StepConfig.class)));
+
+        SystemRepository.clear();
     }
 }

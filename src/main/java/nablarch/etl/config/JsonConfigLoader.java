@@ -1,47 +1,60 @@
 package nablarch.etl.config;
 
-import nablarch.core.util.FileUtil;
-
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import nablarch.core.util.FileUtil;
+
+import javax.batch.runtime.context.JobContext;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * JSON形式のファイルに定義されたETLの設定をロードするクラス。
- * <p>
- * デフォルトでは、"META-INF/etl.json"からロードを行う。
+ * <p/>
+ * "classpath:META-INF/etl-config/" 配下に置かれた "ジョブID.json" をロードする。
  * 
  * @author Kiyohito Itoh
  */
 public class JsonConfigLoader implements EtlConfigLoader {
 
-    /** 設定ファイルのパス */
-    private String configPath = "META-INF/etl.json";
+    /** 設定ファイルを配置するディレクトリのベースパス */
+    private String configBasePath = "classpath:META-INF/etl-config/";
 
-    /**
-     * 設定ファイルのパスを設定する。
-     * @param configPath 設定ファイルのパス
-     */
-    public void setConfigPath(String configPath) {
-        this.configPath = configPath;
-    }
+    /** {@link ObjectMapper}でjsonからMapオブジェクトを生成する際に使用する型情報 */
+    private static final TypeReference<Map<String, StepConfig>> TYPE_REFERENCE = new TypeReference<Map<String, StepConfig>>(){};
 
     /**
      * 設定ファイルから設定をロードする。
      */
     @Override
-    public RootConfig load() {
-
+    public JobConfig load(JobContext jobContext) {
         ObjectMapper mapper = new ObjectMapper();
         mapper.addMixIn(StepConfig.class, PolymorphicStepConfigMixIn.class);
 
+        final String configFilePath = configBasePath + jobContext.getJobName() + ".json";
         try {
-            return mapper.readValue(FileUtil.getClasspathResourceURL(configPath), RootConfig.class);
+            JobConfig jobConfig = new JobConfig();
+            Map<String, StepConfig> steps = mapper.readValue(FileUtil.getResourceURL(configFilePath), TYPE_REFERENCE);
+            jobConfig.setSteps(steps);
+            return jobConfig;
         } catch (Exception e) {
             throw new IllegalStateException(
-                String.format("failed to load etl config file. file = [%s]", configPath), e);
+                String.format("failed to load etl config file. file = [%s]", configFilePath), e);
         }
+    }
+
+    /**
+     * 設定ファイルを配置するディレクトリのベースパスを設定する。
+     * <p/>
+     * パスの指定方法は{@link FileUtil#getResourceURL(String)}を参照。
+     *
+     * @param configBasePath ディレクトリのベースパス
+     */
+    public void setConfigBasePath(String configBasePath) {
+        this.configBasePath = configBasePath;
     }
 
     /**
