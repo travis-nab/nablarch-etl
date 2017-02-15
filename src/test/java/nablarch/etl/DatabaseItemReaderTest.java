@@ -1,8 +1,16 @@
 package nablarch.etl;
 
-import mockit.Deencapsulation;
-import mockit.Expectations;
-import mockit.Mocked;
+import static org.hamcrest.CoreMatchers.*;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+
+import javax.batch.runtime.context.JobContext;
+import javax.batch.runtime.context.StepContext;
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
+
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
@@ -12,6 +20,7 @@ import nablarch.etl.config.DbInputStepConfig;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -19,18 +28,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import javax.batch.runtime.context.JobContext;
-import javax.batch.runtime.context.StepContext;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
-
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import mockit.Deencapsulation;
+import mockit.Expectations;
+import mockit.Mocked;
 
 /**
  * {@link nablarch.etl.DatabaseItemReader}のテストクラス。
@@ -104,7 +104,7 @@ public class DatabaseItemReaderTest {
         try {
             sut.open(null);
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("bean is required. jobId = [test-job], stepId = [test-step]"));
         }
 
@@ -120,7 +120,7 @@ public class DatabaseItemReaderTest {
         try {
             sut.open(null);
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("sqlId is required. jobId = [test-job], stepId = [test-step]"));
         }
     }

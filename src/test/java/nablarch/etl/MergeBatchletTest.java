@@ -1,8 +1,21 @@
 package nablarch.etl;
 
-import mockit.Deencapsulation;
-import mockit.Expectations;
-import mockit.Mocked;
+import static org.hamcrest.CoreMatchers.*;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+import static org.junit.matchers.JUnitMatchers.containsString;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import javax.batch.runtime.context.JobContext;
+import javax.batch.runtime.context.StepContext;
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
+
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
@@ -14,6 +27,7 @@ import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
 import nablarch.test.support.log.app.OnMemoryLogWriter;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -22,21 +36,9 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import javax.batch.runtime.context.JobContext;
-import javax.batch.runtime.context.StepContext;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
-import static org.junit.matchers.JUnitMatchers.containsString;
+import mockit.Deencapsulation;
+import mockit.Expectations;
+import mockit.Mocked;
 
 /**
  * {@link MergeBatchlet}のテストクラス。
@@ -127,7 +129,7 @@ public class MergeBatchletTest {
         try {
             sut.process();
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("bean is required. jobId = [test-job], stepId = [test-step]"));
         }
 
@@ -143,7 +145,7 @@ public class MergeBatchletTest {
         try {
             sut.process();
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("sqlId is required. jobId = [test-job], stepId = [test-step]"));
         }
 
@@ -161,7 +163,7 @@ public class MergeBatchletTest {
         try {
             sut.process();
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("mergeOnColumns is required. jobId = [test-job], stepId = [test-step]"));
         }
 
@@ -182,7 +184,7 @@ public class MergeBatchletTest {
         try {
             sut.process();
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("updateSize > size is required. jobId = [test-job], stepId = [test-step]"));
         }
 
@@ -202,7 +204,7 @@ public class MergeBatchletTest {
         try {
             sut.process();
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("updateSize > bean is required. jobId = [test-job], stepId = [test-step]"));
         }
     }
@@ -229,7 +231,7 @@ public class MergeBatchletTest {
         try {
             sut.process();
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("updateSize > size must be greater than 0. "
                     + "jobId = [test-job], stepId = [test-step], size = [0]"));
         }

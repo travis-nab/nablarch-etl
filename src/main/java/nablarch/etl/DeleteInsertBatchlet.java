@@ -1,5 +1,14 @@
 package nablarch.etl;
 
+import java.text.MessageFormat;
+
+import javax.batch.api.AbstractBatchlet;
+import javax.batch.runtime.context.JobContext;
+import javax.batch.runtime.context.StepContext;
+import javax.enterprise.context.Dependent;
+import javax.inject.Inject;
+import javax.inject.Named;
+
 import nablarch.common.dao.EntityUtil;
 import nablarch.core.db.connection.AppDbConnection;
 import nablarch.core.db.connection.DbConnectionContext;
@@ -13,14 +22,6 @@ import nablarch.etl.config.DbToDbStepConfig.UpdateSize;
 import nablarch.etl.config.EtlConfig;
 import nablarch.etl.config.StepConfig;
 import nablarch.etl.generator.InsertSqlGenerator;
-
-import javax.batch.api.AbstractBatchlet;
-import javax.batch.runtime.context.JobContext;
-import javax.batch.runtime.context.StepContext;
-import javax.enterprise.context.Dependent;
-import javax.inject.Inject;
-import javax.inject.Named;
-import java.text.MessageFormat;
 
 /**
  * テーブル間のデータ転送を行う{@link javax.batch.api.Batchlet}実装クラス。
@@ -90,7 +91,7 @@ public class DeleteInsertBatchlet extends AbstractBatchlet {
         final InsertMode insertMode = config.getInsertMode();
 
         if (insertMode == InsertMode.ORACLE_DIRECT_PATH && updateSize != null) {
-            throw new IllegalArgumentException("Oracle Direct Path mode does not support UpdateSize.");
+            throw new InvalidEtlConfigException("Oracle Direct Path mode does not support UpdateSize.");
         }
 
         if (updateSize != null) {

@@ -1,14 +1,17 @@
 package nablarch.etl.generator;
 
-import nablarch.etl.config.DbToDbStepConfig;
-import org.junit.Test;
+import static org.hamcrest.CoreMatchers.*;
+import static org.junit.Assert.assertThat;
+
+import java.util.Map;
 
 import javax.persistence.Entity;
 import javax.persistence.Table;
-import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
+import nablarch.etl.InvalidEtlConfigException;
+import nablarch.etl.config.DbToDbStepConfig;
+
+import org.junit.Test;
 
 /**
  * {@link MaxLineNumberSqlGenerator}のテスト。
@@ -38,7 +41,7 @@ public class MaxLineNumberSqlGeneratorTest {
     /**
      * 非Entityクラスはエラーとなること。
      */
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = InvalidEtlConfigException.class)
     public void notEntityClass() throws Exception {
 
         final DbToDbStepConfig config = new DbToDbStepConfig() {

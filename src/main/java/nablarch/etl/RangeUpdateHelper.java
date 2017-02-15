@@ -65,7 +65,7 @@ public class RangeUpdateHelper {
             final String jobId, final String stepId, final String key, final Integer value) {
 
         if (value <= 0) {
-            throw new IllegalArgumentException(
+            throw new InvalidEtlConfigException(
                     String.format(
                             "%s must be greater than 0. jobId = [%s], stepId = [%s], size = [%s]",
                             key, jobId, stepId, value));

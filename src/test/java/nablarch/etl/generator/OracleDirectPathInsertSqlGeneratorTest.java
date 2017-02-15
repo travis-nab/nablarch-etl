@@ -1,9 +1,10 @@
 package nablarch.etl.generator;
 
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.assertThat;
 
 import nablarch.core.util.StringUtil;
+import nablarch.etl.InvalidEtlConfigException;
 import nablarch.etl.config.DbToDbStepConfig;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
 
@@ -48,7 +49,7 @@ public class OracleDirectPathInsertSqlGeneratorTest extends InsertSqlGeneratorTe
     /**
      * 非Entityクラスはエラーとなること。
      */
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = InvalidEtlConfigException.class)
     public void notEntityClass() throws Exception {
 
         final DbToDbStepConfig config = new DbToDbStepConfig() {

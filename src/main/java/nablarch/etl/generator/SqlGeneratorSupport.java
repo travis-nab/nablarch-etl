@@ -3,6 +3,7 @@ package nablarch.etl.generator;
 import javax.persistence.Entity;
 
 import nablarch.core.util.annotation.Published;
+import nablarch.etl.InvalidEtlConfigException;
 import nablarch.etl.config.StepConfig;
 
 /**
@@ -23,7 +24,7 @@ public abstract class SqlGeneratorSupport<T extends StepConfig> {
      */
     protected static void verify(final Class<?> clazz) {
         if (clazz.getAnnotation(Entity.class) == null) {
-            throw new IllegalArgumentException(clazz.getName() + " isn't a entity class.");
+            throw new InvalidEtlConfigException(clazz.getName() + " isn't a entity class.");
         }
     }
 
