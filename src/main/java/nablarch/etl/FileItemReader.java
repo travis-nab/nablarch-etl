@@ -1,21 +1,28 @@
 package nablarch.etl;
 
-import nablarch.common.databind.ObjectMapper;
-import nablarch.common.databind.ObjectMapperFactory;
-import nablarch.etl.config.EtlConfig;
-import nablarch.etl.config.FileToDbStepConfig;
-import nablarch.etl.config.PathConfig;
-import nablarch.etl.config.StepConfig;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.Serializable;
 
 import javax.batch.api.chunk.AbstractItemReader;
+import javax.batch.operations.BatchRuntimeException;
 import javax.batch.runtime.context.JobContext;
 import javax.batch.runtime.context.StepContext;
 import javax.enterprise.context.Dependent;
 import javax.inject.Inject;
 import javax.inject.Named;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.Serializable;
+
+import nablarch.common.databind.ObjectMapper;
+import nablarch.common.databind.ObjectMapperFactory;
+import nablarch.core.log.basic.LogLevel;
+import nablarch.core.log.operation.OperationLogger;
+import nablarch.core.message.MessageLevel;
+import nablarch.core.message.MessageUtil;
+import nablarch.etl.config.EtlConfig;
+import nablarch.etl.config.FileToDbStepConfig;
+import nablarch.etl.config.PathConfig;
+import nablarch.etl.config.StepConfig;
 
 /**
  * 入力ファイルからJavaオブジェクトへ変換を行う{@link javax.batch.api.chunk.ItemReader}実装クラス。
@@ -63,8 +70,16 @@ public class FileItemReader extends AbstractItemReader {
         EtlUtil.verifyRequired(jobId, stepId, "bean", config.getBean());
         EtlUtil.verifyRequired(jobId, stepId, "fileName", config.getFileName());
 
-        reader = ObjectMapperFactory.create(
-                    config.getBean(), new FileInputStream(new File(inputFileBasePath, config.getFileName())));
+        final File inputFilePath = new File(inputFileBasePath, config.getFileName());
+        try {
+            reader = ObjectMapperFactory.create(
+                        config.getBean(), new FileInputStream(inputFilePath));
+        } catch (FileNotFoundException e) {
+            final String message = MessageUtil.createMessage(MessageLevel.ERROR, "nablarch.etl.input-file-not-found",
+                    inputFilePath.getAbsolutePath()).formatMessage();
+            OperationLogger.write(LogLevel.ERROR, message, e);
+            throw new BatchRuntimeException(message, e);
+        }
     }
 
     @Override

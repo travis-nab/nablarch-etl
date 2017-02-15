@@ -1,31 +1,35 @@
 package nablarch.etl;
 
-import mockit.Deencapsulation;
-import mockit.Expectations;
-import mockit.Mocked;
-import mockit.NonStrictExpectations;
+import static org.hamcrest.CoreMatchers.*;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.Reader;
+import java.util.Arrays;
+import java.util.List;
+
+import javax.batch.operations.BatchRuntimeException;
+import javax.batch.runtime.context.JobContext;
+import javax.batch.runtime.context.StepContext;
+
 import nablarch.common.databind.csv.Csv;
 import nablarch.core.repository.SystemRepository;
 import nablarch.etl.config.DbToFileStepConfig;
+import nablarch.test.support.log.app.OnMemoryLogWriter;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import javax.batch.runtime.context.JobContext;
-import javax.batch.runtime.context.StepContext;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.Reader;
-import java.util.Arrays;
-import java.util.List;
-
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import mockit.Deencapsulation;
+import mockit.Expectations;
+import mockit.Mocked;
+import mockit.NonStrictExpectations;
 
 /**
  * {@link FileItemWriter}のテストクラス。
@@ -49,6 +53,7 @@ public class FileItemWriterTest {
 
     @Before
     public void setUp() {
+        OnMemoryLogWriter.clear();
 
         sut = new FileItemWriter();
 
@@ -218,9 +223,9 @@ public class FileItemWriterTest {
     }
 
     /**
-     * ファイルに書き込み権限がない場合はエラーとなること
+     * ファイルに書き込み権限がない場合はオペレータ通知ログが出力されること
      */
-    @Test(expected = FileNotFoundException.class)
+    @Test
     public void testOutputFileCanNotWrite() throws Exception {
         final File outputFileBasePath = folder.newFolder();
         final File output = new File(outputFileBasePath, "dummy");
@@ -239,7 +244,15 @@ public class FileItemWriterTest {
         output.setReadOnly();
 
         // ここで例外が発生する
-        sut.open(null);
+        try {
+            sut.open(null);
+            fail();
+        } catch (BatchRuntimeException e) {
+            final String message = "出力ファイルパスが正しくありません。ディレクトリが存在しているか、権限が正しいかを確認してください。出力ファイルパス=[" + output.getAbsolutePath() + ']';
+            assertThat(OnMemoryLogWriter.getMessages("writer.memory")
+                                        .get(0), containsString("-ERROR- " + message));
+            assertThat(e.getMessage(), is(message));
+        }
     }
 
     /**

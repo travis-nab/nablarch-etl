@@ -1,16 +1,27 @@
 package nablarch.etl;
 
-import mockit.Deencapsulation;
-import mockit.Expectations;
-import mockit.Mock;
-import mockit.MockUp;
-import mockit.Mocked;
-import mockit.NonStrictExpectations;
+import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+
+import java.io.File;
+import java.io.InputStream;
+
+import javax.batch.runtime.context.JobContext;
+import javax.batch.runtime.context.StepContext;
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
+
+import org.eclipse.persistence.tools.file.FileUtil;
+
 import nablarch.etl.config.FileToDbStepConfig;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
 import nablarch.test.support.log.app.OnMemoryLogWriter;
-import org.eclipse.persistence.tools.file.FileUtil;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -19,19 +30,12 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 
-import javax.batch.runtime.context.JobContext;
-import javax.batch.runtime.context.StepContext;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
-import java.io.File;
-import java.io.InputStream;
-
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.core.IsInstanceOf.instanceOf;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import mockit.Deencapsulation;
+import mockit.Expectations;
+import mockit.Mock;
+import mockit.MockUp;
+import mockit.Mocked;
+import mockit.NonStrictExpectations;
 
 /**
  * {@link SqlLoaderBatchlet}のテストクラス。
@@ -225,6 +229,58 @@ public class SqlLoaderBatchletTest {
             assertThat(e, instanceOf(SqlLoaderFailedException.class));
             assertThat(e.getMessage(), is("failed to execute SQL*Loader. controlFile = [" + new File("src/test/resources/nablarch/etl/ctl/Person.ctl").getPath() + "]"));
         }
+    }
+
+    /**
+     * 入力ファイルが存在しない場合はオペレータ向けログが出力されること。
+     */
+    @Test
+    public void inputFileNotFound_shouldWriteOperatorLog() throws Exception {
+        // -------------------------------------------------- setup objects that is injected
+        final File inputFilePath = new File("src/test/resources/nablarch/etl/data");
+        Deencapsulation.setField(sut, "inputFileBasePath", inputFilePath);
+        Deencapsulation.setField(sut, "sqlLoaderControlFileBasePath", new File("src/test/resources/nablarch/etl/ctl"));
+        Deencapsulation.setField(sut, "sqlLoaderOutputFileBasePath", new File(tmpPath));
+        new Expectations() {{
+            mockFileToDbStepConfig.getBean();
+            result = Person.class;
+            mockFileToDbStepConfig.getFileName();
+            result = "not_found.csv";
+        }};
+
+        final String exitStatus = sut.process();
+        assertThat(exitStatus, is("FAILED"));
+
+        assertThat(OnMemoryLogWriter.getMessages("writer.memory").get(0),
+                containsString("-ERROR- 入力ファイルが存在しません。外部からファイルを受信できているか、"
+                        + "ディレクトリやファイルの権限は正しいかを確認してください。入力ファイル=["
+                        + new File(inputFilePath, "not_found.csv").getAbsolutePath() + ']'));
+    }
+
+    /**
+     * 入力ファイルが示すパスがディレクトリの場合オペレータ向けのログが出力されること。
+     */
+    @Test
+    public void inputFileIsDirectory_shouldWriteOperatorLog() throws Exception {
+        // -------------------------------------------------- setup objects that is injected
+        final File inputFilePath = new File("src/test/resources/nablarch/etl");
+        Deencapsulation.setField(sut, "inputFileBasePath", inputFilePath);
+        Deencapsulation.setField(sut, "sqlLoaderControlFileBasePath", new File("src/test/resources/nablarch/etl/ctl"));
+        Deencapsulation.setField(sut, "sqlLoaderOutputFileBasePath", new File(tmpPath));
+        new Expectations() {{
+            mockFileToDbStepConfig.getBean();
+            result = Person.class;
+            mockFileToDbStepConfig.getFileName();
+            result = "data";
+        }};
+
+        final String exitStatus = sut.process();
+        assertThat(exitStatus, is("FAILED"));
+
+        assertThat(OnMemoryLogWriter.getMessages("writer.memory").get(0),
+                containsString("-ERROR- 入力ファイルが存在しません。外部からファイルを受信できているか、"
+                        + "ディレクトリやファイルの権限は正しいかを確認してください。入力ファイル=["
+                        + new File(inputFilePath, "data").getAbsolutePath() + ']'));
     }
 
     @Entity

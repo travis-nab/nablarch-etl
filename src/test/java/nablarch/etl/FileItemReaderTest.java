@@ -1,29 +1,32 @@
 package nablarch.etl;
 
-import mockit.Deencapsulation;
-import mockit.Expectations;
-import mockit.Mocked;
+import static org.hamcrest.CoreMatchers.*;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+
+import javax.batch.operations.BatchRuntimeException;
+import javax.batch.runtime.context.JobContext;
+import javax.batch.runtime.context.StepContext;
+
 import nablarch.common.databind.csv.Csv;
 import nablarch.core.repository.SystemRepository;
 import nablarch.etl.config.FileToDbStepConfig;
+import nablarch.test.support.log.app.OnMemoryLogWriter;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import javax.batch.runtime.context.JobContext;
-import javax.batch.runtime.context.StepContext;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.OutputStreamWriter;
-
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import mockit.Deencapsulation;
+import mockit.Expectations;
+import mockit.Mocked;
 
 /**
  * {@link FileItemReader}のテストクラス。
@@ -58,6 +61,7 @@ public class FileItemReaderTest {
         Deencapsulation.setField(sut, "jobContext", mockJobContext);
         Deencapsulation.setField(sut, "stepContext", mockStepContext);
         Deencapsulation.setField(sut, "stepConfig", mockFileToDbStepConfig);
+        OnMemoryLogWriter.clear();
     }
 
     @After
@@ -186,9 +190,9 @@ public class FileItemReaderTest {
     }
 
     /**
-     * ファイルが存在しない場合はエラーとなること
+     * ファイルが存在しない場合はオペレータ向けログが出力されること
      */
-    @Test(expected = FileNotFoundException.class)
+    @Test
     public void inputFileNotFound() throws Exception {
 
         final File inputFileBasePath = new File("notfound");
@@ -200,9 +204,21 @@ public class FileItemReaderTest {
             mockFileToDbStepConfig.getFileName();
             result = "dummy";
         }};
+        
+        final String inputFilePath = new File(inputFileBasePath, "dummy").getAbsolutePath();
 
-        // ファイルが存在しないので、ここで例外が発生する。
-        sut.open(null);
+        try {
+            sut.open(null);
+            fail();
+        } catch (BatchRuntimeException e) {
+            final String log = OnMemoryLogWriter.getMessages("writer.memory")
+                                                .get(0);
+            final String message = "入力ファイルが存在しません。外部からファイルを受信できているか、"
+                    + "ディレクトリやファイルの権限は正しいかを確認してください。入力ファイル=[" + inputFilePath + ']';
+            
+            assertThat(log, containsString("-ERROR- " + message));
+            assertThat(e.getMessage(), is(message));
+        }
     }
 
     @Csv(
