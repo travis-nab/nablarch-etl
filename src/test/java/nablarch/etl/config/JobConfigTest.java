@@ -6,12 +6,16 @@ import static org.junit.Assert.assertThat;
 import java.util.HashMap;
 import java.util.Map;
 
-import mockit.Expectations;
-import mockit.Mocked;
 import org.hamcrest.Matchers;
+
+import nablarch.etl.InvalidEtlConfigException;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import mockit.Expectations;
+import mockit.Mocked;
 
 /**
  * {@link JobConfig}のテスト。
@@ -74,7 +78,7 @@ public class JobConfigTest {
         steps.put("hoge", null);
         sut.setSteps(steps);
 
-        expectedException.expect(IllegalStateException.class);
+        expectedException.expect(InvalidEtlConfigException.class);
         expectedException.expectMessage("step configuration was not found. jobId = [sample], stepId = [hoge]");
         sut.getStepConfig("sample", "hoge");
     }
@@ -84,7 +88,7 @@ public class JobConfigTest {
      */
     @Test
     public void testGetStepConfigNotSettingError() throws Exception {
-        expectedException.expect(IllegalStateException.class);
+        expectedException.expect(InvalidEtlConfigException.class);
         expectedException.expectMessage("step configuration was not found. jobId = [sample], stepId = [hoge]");
 
         sut.getStepConfig("sample", "hoge");

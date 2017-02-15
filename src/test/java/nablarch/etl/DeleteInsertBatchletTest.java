@@ -1,9 +1,19 @@
 package nablarch.etl;
 
-import mockit.Deencapsulation;
-import mockit.Expectations;
-import mockit.Mocked;
-import mockit.NonStrictExpectations;
+import static org.hamcrest.CoreMatchers.*;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.batch.runtime.context.JobContext;
+import javax.batch.runtime.context.StepContext;
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
+
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
@@ -17,6 +27,7 @@ import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
 import nablarch.test.support.log.app.OnMemoryLogWriter;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -24,18 +35,10 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import javax.batch.runtime.context.JobContext;
-import javax.batch.runtime.context.StepContext;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import mockit.Deencapsulation;
+import mockit.Expectations;
+import mockit.Mocked;
+import mockit.NonStrictExpectations;
 
 /**
  * {@link DeleteInsertBatchlet}のテストクラス。
@@ -123,7 +126,7 @@ public class DeleteInsertBatchletTest {
         try {
             sut.process();
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("bean is required. jobId = [test-job], stepId = [test-step]"));
         }
 
@@ -139,7 +142,7 @@ public class DeleteInsertBatchletTest {
         try {
             sut.process();
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("sqlId is required. jobId = [test-job], stepId = [test-step]"));
         }
     }
@@ -169,7 +172,7 @@ public class DeleteInsertBatchletTest {
 
         try {
             sut.process();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("Oracle Direct Path mode does not support UpdateSize."));
         }
     }
@@ -195,7 +198,7 @@ public class DeleteInsertBatchletTest {
         try {
             sut.process();
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("updateSize > size must be greater than 0. "
                     + "jobId = [test-job], stepId = [test-step], size = [0]"));
         }

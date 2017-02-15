@@ -1,6 +1,6 @@
 package nablarch.etl.generator;
 
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.assertThat;
 
 import java.sql.Connection;
@@ -13,13 +13,12 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
 
-import mockit.Mocked;
-import mockit.NonStrictExpectations;
 import nablarch.common.dao.ColumnMeta;
 import nablarch.common.dao.EntityUtil;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
 import nablarch.core.repository.SystemRepository;
+import nablarch.etl.InvalidEtlConfigException;
 import nablarch.etl.config.DbToDbStepConfig;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
@@ -31,6 +30,9 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import mockit.Mocked;
+import mockit.NonStrictExpectations;
 
 /**
  * {@link MergeSqlGenerator}のテスト。
@@ -137,7 +139,7 @@ public class MergeSqlGeneratorTest {
     /**
      * Entity以外のクラスを指定した場合、エラーとなること。
      */
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = InvalidEtlConfigException.class)
     public void notEntityClass() throws Exception {
 
         final DbToDbStepConfig config = new DbToDbStepConfig() {

@@ -106,7 +106,7 @@ public class SqlLoaderBatchletTest {
         try {
             sut.process();
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("fileName is required. jobId = [test-job], stepId = [test-step]"));
         }
 
@@ -122,7 +122,7 @@ public class SqlLoaderBatchletTest {
         try {
             sut.process();
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("bean is required. jobId = [test-job], stepId = [test-step]"));
         }
     }

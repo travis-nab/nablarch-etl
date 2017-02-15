@@ -72,7 +72,7 @@ public final class EtlUtil {
      *
      * @param connection データベース接続
      * @return {@link DatabaseMetaData}
-     * @throws {@link SQLException} データベースに関する例外
+     * @throws SQLException データベースに関する例外
      */
     private static DatabaseMetaData getMetaData(
             final TransactionManagerConnection connection) throws SQLException {
@@ -89,12 +89,13 @@ public final class EtlUtil {
      * @param stepId ステップID
      * @param key キー
      * @param value 値
-     * @throws {@link IllegalArgumentException} 値がnullの場合
+     * @throws InvalidEtlConfigException 必須の設定項目が存在しない場合
      */
     public static void verifyRequired(
-            final String jobId, final String stepId, final String key, final Object value) {
+            final String jobId, final String stepId, final String key, final Object value) throws
+            InvalidEtlConfigException {
         if (value == null) {
-            throw new IllegalArgumentException(
+            throw new InvalidEtlConfigException(
                 String.format(
                     "%s is required. jobId = [%s], stepId = [%s]",
                     key, jobId, stepId));

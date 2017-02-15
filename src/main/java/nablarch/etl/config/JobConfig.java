@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import nablarch.core.util.annotation.Published;
+import nablarch.etl.InvalidEtlConfigException;
 
 /**
  * ジョブの設定を保持するクラス。
@@ -45,19 +46,18 @@ public class JobConfig {
 
     /**
      * ステップの設定を取得する。
-     * @param <T> 取得するコンフィグクラスの型
      * @param jobId ジョブID
      * @param stepId ステップID
      * @return ステップの設定
      */
-    public <T extends StepConfig> T getStepConfig(String jobId, String stepId) {
+    public StepConfig getStepConfig(final String jobId, final String stepId) {
 
-        StepConfig stepConfig = getSteps().get(stepId);
+        final StepConfig stepConfig = getSteps().get(stepId);
         if (stepConfig == null) {
-            throw new IllegalStateException(
+            throw new InvalidEtlConfigException(
                     String.format("step configuration was not found. jobId = [%s], stepId = [%s]", jobId, stepId));
         }
-        return (T) stepConfig;
+        return stepConfig;
     }
 
 }

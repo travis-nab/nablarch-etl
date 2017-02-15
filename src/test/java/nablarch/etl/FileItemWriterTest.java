@@ -90,7 +90,7 @@ public class FileItemWriterTest {
         try {
             sut.open(null);
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("bean is required. jobId = [test-job], stepId = [test-step]"));
         }
 
@@ -106,7 +106,7 @@ public class FileItemWriterTest {
         try {
             sut.open(null);
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidEtlConfigException e) {
             assertThat(e.getMessage(), is("fileName is required. jobId = [test-job], stepId = [test-step]"));
         }
     }
