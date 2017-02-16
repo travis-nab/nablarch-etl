@@ -10,11 +10,10 @@ import javax.inject.Inject;
 import javax.inject.Named;
 
 import nablarch.common.dao.EntityUtil;
+import nablarch.common.dao.UniversalDao;
 import nablarch.core.db.connection.AppDbConnection;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.statement.SqlPStatement;
-import nablarch.core.log.Logger;
-import nablarch.core.log.LoggerManager;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.etl.config.DbToDbStepConfig;
 import nablarch.etl.config.DbToDbStepConfig.InsertMode;
@@ -22,6 +21,8 @@ import nablarch.etl.config.DbToDbStepConfig.UpdateSize;
 import nablarch.etl.config.EtlConfig;
 import nablarch.etl.config.StepConfig;
 import nablarch.etl.generator.InsertSqlGenerator;
+import nablarch.fw.batch.ee.progress.ProgressManager;
+import nablarch.fw.batch.progress.ProgressLogger;
 
 /**
  * テーブル間のデータ転送を行う{@link javax.batch.api.Batchlet}実装クラス。
@@ -34,25 +35,43 @@ import nablarch.etl.generator.InsertSqlGenerator;
 @Dependent
 public class DeleteInsertBatchlet extends AbstractBatchlet {
 
-    /** ロガー */
-    private static final Logger LOGGER = LoggerManager.get("PROGRESS");
-
     /** {@link JobContext} */
-    @Inject
-    private JobContext jobContext;
+    private final JobContext jobContext;
 
     /** {@link StepContext} */
-    @Inject
-    private StepContext stepContext;
+    private final StepContext stepContext;
 
     /** 範囲更新のヘルパークラス */
-    @Inject
-    private RangeUpdateHelper rangeUpdateHelper;
+    private final RangeUpdateHelper rangeUpdateHelper;
 
     /** ETLの設定 */
-    @EtlConfig
+    private final StepConfig stepConfig;
+
+    /** 進捗状況を管理するBean */
+    private final ProgressManager progressManager;
+
+    /**
+     * コンストラクタ。
+     *
+     * @param jobContext {@link JobContext}
+     * @param stepContext {@link StepContext}
+     * @param rangeUpdateHelper {@link RangeUpdateHelper}
+     * @param stepConfig ステップ設定
+     * @param progressManager {@link ProgressManager}
+     */
     @Inject
-    private StepConfig stepConfig;
+    public DeleteInsertBatchlet(
+            final JobContext jobContext,
+            final StepContext stepContext,
+            final RangeUpdateHelper rangeUpdateHelper,
+            @EtlConfig final StepConfig stepConfig,
+            final ProgressManager progressManager) {
+        this.jobContext = jobContext;
+        this.stepContext = stepContext;
+        this.rangeUpdateHelper = rangeUpdateHelper;
+        this.stepConfig = stepConfig;
+        this.progressManager = progressManager;
+    }
 
     /**
      * 一括登録処理を行う。
@@ -125,21 +144,21 @@ public class DeleteInsertBatchlet extends AbstractBatchlet {
         final UpdateSize updateSize = config.getUpdateSize();
         final InsertSqlGenerator sqlGenerator = mode.getInsertSqlGenerator();
 
-        final String insertSql = sqlGenerator.generateSql(config);
-        final SqlPStatement statement = connection.prepareStatement(insertSql);
-        final String tableName = EntityUtil.getTableName(config.getBean());
+        final SqlPStatement statement = connection.prepareStatement(sqlGenerator.generateSql(config));
+        
         if (mode == InsertMode.ORACLE_DIRECT_PATH || updateSize == null) {
-            int updateCount = statement.executeUpdate();
-            loggingProgress(tableName, updateCount);
+            progressManager.setInputCount(UniversalDao.countBySqlFile(config.getBean(), config.getSqlId()));
+            progressManager.outputProgressInfo(statement.executeUpdate());
         } else {
-            final Range range = new Range(updateSize.getSize(), rangeUpdateHelper.getMaxLineNumber(config));
-            long totalWriteCount = 0;
+            final Long maxLineNum = rangeUpdateHelper.getMaxLineNumber(config);
+            progressManager.setInputCount(maxLineNum);
+            final Range range = new Range(updateSize.getSize(), maxLineNum);
             while (range.next()) {
                 statement.setLong(1, range.from);
                 statement.setLong(2, range.to);
-                totalWriteCount += statement.executeUpdate();
+                statement.executeUpdate();
                 commit();
-                loggingProgress(tableName, totalWriteCount);
+                progressManager.outputProgressInfo(range.to);
             }
         }
     }
@@ -152,20 +171,13 @@ public class DeleteInsertBatchlet extends AbstractBatchlet {
     }
 
     /**
-     * 進捗ログを出力する。
-     * @param tableName 登録先テーブル名
-     * @param writeCount 書き込み件数
-     */
-    private static void loggingProgress(String tableName, long writeCount) {
-        LOGGER.logInfo(MessageFormat.format("load progress. table name=[{0}], write count=[{1}]", tableName, writeCount));
-    }
-
-    /**
      * クリーニングのログを出力する。
      * @param tableName クリーンしたテーブル名
      * @param deleteCount 削除した件数
      */
-    private static void loggingCleaning(String tableName, int deleteCount) {
-        LOGGER.logInfo(MessageFormat.format("clean table. table name=[{0}], delete count=[{1}]", tableName, deleteCount));
+    private void loggingCleaning(final String tableName, final int deleteCount) {
+        ProgressLogger.write(MessageFormat.format(""
+                        + "job name: [{0}] step name: [{1}] table name: [{2}] delete count: [{3}]",
+                jobContext.getJobName(), stepContext.getStepName(), tableName, deleteCount));
     }
 }

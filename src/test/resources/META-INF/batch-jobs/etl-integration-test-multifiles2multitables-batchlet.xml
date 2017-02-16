@@ -19,6 +19,7 @@
   <step id="validation-file1" next="validation-file2">
     <listeners>
       <listener ref="nablarchStepListenerExecutor" />
+      <listener ref="progressLogListener" /> 
     </listeners>
     <batchlet ref="validationBatchlet" />
   </step>
@@ -26,6 +27,7 @@
   <step id="validation-file2" next="load-table1">
     <listeners>
       <listener ref="nablarchStepListenerExecutor" />
+      <listener ref="progressLogListener" /> 
     </listeners>
     <batchlet ref="validationBatchlet" />
   </step>
@@ -33,6 +35,7 @@
   <step id="load-table1" next="load-table2">
     <listeners>
       <listener ref="nablarchStepListenerExecutor" />
+      <listener ref="progressLogListener" /> 
     </listeners>
     <batchlet ref="deleteInsertBatchlet" />
   </step>
@@ -40,6 +43,7 @@
   <step id="load-table2">
     <listeners>
       <listener ref="nablarchStepListenerExecutor" />
+      <listener ref="progressLogListener" /> 
     </listeners>
     <batchlet ref="deleteInsertBatchlet" />
   </step>

@@ -14,6 +14,9 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
 
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
+
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
@@ -23,6 +26,7 @@ import nablarch.core.transaction.TransactionFactory;
 import nablarch.etl.config.DbToDbStepConfig;
 import nablarch.etl.config.DbToDbStepConfig.InsertMode;
 import nablarch.etl.config.DbToDbStepConfig.UpdateSize;
+import nablarch.fw.batch.ee.progress.BasicProgressManager;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
@@ -32,10 +36,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
-import mockit.Deencapsulation;
 import mockit.Expectations;
 import mockit.Mocked;
 import mockit.NonStrictExpectations;
@@ -49,19 +54,16 @@ public class DeleteInsertBatchletTest {
     @ClassRule
     public static SystemRepositoryResource repositoryResource = new SystemRepositoryResource("db-default.xml");
 
-    TransactionManagerConnection connection;
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
-    /** テスト対象 */
-    private DeleteInsertBatchlet sut;
+    private TransactionManagerConnection connection;
 
     @Mocked
     private JobContext mockJobContext;
 
     @Mocked
     private StepContext mockStepContext;
-
-    @Mocked(cascading = false)
-    private DbToDbStepConfig mockDbToDbStepConfig;
 
     @BeforeClass
     public static void setUpClass() throws Exception {
@@ -74,7 +76,6 @@ public class DeleteInsertBatchletTest {
 
         VariousDbTestHelper.delete(WorkTableEntity.class);
         VariousDbTestHelper.delete(BulkInsertEntity.class);
-        sut = new DeleteInsertBatchlet();
         ConnectionFactory connectionFactory = repositoryResource.getComponent("connectionFactory");
         connection = connectionFactory.getConnection(TransactionContext.DEFAULT_TRANSACTION_CONTEXT_KEY);
         DbConnectionContext.setConnection(connection);
@@ -90,14 +91,6 @@ public class DeleteInsertBatchletTest {
             mockJobContext.getJobName();
             result = "test-job";
         }};
-        Deencapsulation.setField(sut, "jobContext", mockJobContext);
-        Deencapsulation.setField(sut, "stepContext", mockStepContext);
-        Deencapsulation.setField(sut, "stepConfig", mockDbToDbStepConfig);
-
-        final RangeUpdateHelper rangeUpdateHelper = new RangeUpdateHelper();
-        Deencapsulation.setField(rangeUpdateHelper, mockJobContext);
-        Deencapsulation.setField(rangeUpdateHelper, mockStepContext);
-        Deencapsulation.setField(sut, rangeUpdateHelper);
 
         OnMemoryLogWriter.clear();
     }
@@ -111,40 +104,41 @@ public class DeleteInsertBatchletTest {
     }
 
     /**
-     * 必須項目が指定されなかった場合、例外が送出されること。
+     * 必須なBeanクラスが設定されていない場合例外が送出されること。
      */
     @Test
-    public void testRequired() throws Exception {
+    public void beanNameSetNull_shouldThrowException() throws Exception {
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        final DeleteInsertBatchlet sut = new DeleteInsertBatchlet(
+                mockJobContext,
+                mockStepContext,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
-        // bean
 
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = null;
-        }};
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("bean is required. jobId = [test-job], stepId = [test-step]");
+        sut.process();
+    }
 
-        try {
-            sut.process();
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("bean is required. jobId = [test-job], stepId = [test-step]"));
-        }
+    /**
+     * 必須案SQLIDが設定されていない場合例外が送出されること。
+     */
+    @Test
+    public void sqlIdSetNull_shouldThrowException() throws Exception {
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(BulkInsertEntity.class);
+        final DeleteInsertBatchlet sut = new DeleteInsertBatchlet(
+                mockJobContext,
+                mockStepContext,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
-        // bean
-
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = BulkInsertEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = null;
-        }};
-
-        try {
-            sut.process();
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("sqlId is required. jobId = [test-job], stepId = [test-step]"));
-        }
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("sqlId is required. jobId = [test-job], stepId = [test-step]");
+        sut.process();
     }
 
     /**
@@ -152,29 +146,25 @@ public class DeleteInsertBatchletTest {
      */
     @Test
     public void testSpecifyOracleDirectPathModeAndUpdateSize() throws Exception {
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(BulkInsertEntity.class);
+        stepConfig.setSqlId("dummy");
+        stepConfig.setInsertMode(InsertMode.ORACLE_DIRECT_PATH);
+        final UpdateSize size = new UpdateSize();
+        size.setSize(10);
+        size.setBean(WorkTableEntity.class);
+        stepConfig.setUpdateSize(size);
 
-        new Expectations() {{
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getBean();
-            result = BulkInsertEntity.class;
+        final DeleteInsertBatchlet sut = new DeleteInsertBatchlet(
+                mockJobContext,
+                mockStepContext,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
-            mockDbToDbStepConfig.getInsertMode();
-            result = InsertMode.ORACLE_DIRECT_PATH;
-
-            final UpdateSize updateSize = new UpdateSize();
-            updateSize.setBean(WorkTableEntity.class);
-            updateSize.setSize(10);
-            mockDbToDbStepConfig.getUpdateSize();
-            result = updateSize;
-
-        }};
-
-        try {
-            sut.process();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("Oracle Direct Path mode does not support UpdateSize."));
-        }
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("Oracle Direct Path mode does not support UpdateSize.");
+        sut.process();
     }
 
     /**
@@ -182,29 +172,29 @@ public class DeleteInsertBatchletTest {
      */
     @Test
     public void testInvalidUpdateSize() throws Exception {
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(BulkInsertEntity.class);
+        stepConfig.setSqlId("dummy");
+        stepConfig.setInsertMode(InsertMode.NORMAL);
+        final UpdateSize size = new UpdateSize();
+        size.setSize(0);
+        size.setBean(WorkTableEntity.class);
+        stepConfig.setUpdateSize(size);
 
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = BulkInsertEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getUpdateSize();
-            UpdateSize updateSize = new UpdateSize();
-            updateSize.setBean(WorkTableEntity.class);
-            updateSize.setSize(0);
-            result = updateSize;
-        }};
+        final DeleteInsertBatchlet sut = new DeleteInsertBatchlet(
+                mockJobContext,
+                mockStepContext,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
-        try {
-            sut.process();
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("updateSize > size must be greater than 0. "
-                    + "jobId = [test-job], stepId = [test-step], size = [0]"));
-        }
-
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage(
+                "updateSize.size must be greater than 0. jobId = [test-job], stepId = [test-step], size = [0]");
+        sut.process();
     }
 
+    //
     /**
      * インサートが正常にできること。
      */
@@ -222,18 +212,19 @@ public class DeleteInsertBatchletTest {
         );
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getBean();
-            result = BulkInsertEntity.class;
-            mockDbToDbStepConfig.getSql();
-            result = createTransferQuery();
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setSqlId("SELECT_ALL");
+        stepConfig.setBean(BulkInsertEntity.class);
+        stepConfig.setInsertMode(InsertMode.NORMAL);
+        stepConfig.initialize();
 
-            mockDbToDbStepConfig.getInsertMode();
-            result = InsertMode.NORMAL;
-        }};
-
+        final DeleteInsertBatchlet sut = new DeleteInsertBatchlet(
+                mockJobContext,
+                mockStepContext,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
+        
         // -------------------------------------------------- execute
         sut.process();
         connection.commit();
@@ -253,10 +244,19 @@ public class DeleteInsertBatchletTest {
 
         // -------------------------------------------------- assert log
         OnMemoryLogWriter.assertLogContains("writer.sql", "insert into");
-        String[] expected = { "-INFO- clean table. table name=[bulk_insert_entity], delete count=[0]",
-                "-INFO- load progress. table name=[bulk_insert_entity], write count=[6]"};
-        OnMemoryLogWriter.assertLogContains("writer.memory", expected);
+
+        final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(messages, Matchers.contains(
+                containsString("-INFO- job name: [test-job] step name: [test-step] table name: [bulk_insert_entity] delete count: [0]"),
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [6]"),
+                allOf(
+                        containsString("-INFO- job name: [test-job] step name: [test-step]"),
+                        containsString("remaining count: [0]")
+                )
+
+        ));
     }
+    
 
     /**
      * 既存のデータが存在している場合でもクリーニング後に登録処理が行われること
@@ -280,16 +280,18 @@ public class DeleteInsertBatchletTest {
         );
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getBean();
-            result = BulkInsertEntity.class;
-            mockDbToDbStepConfig.getSql();
-            result = createTransferQuery();
-            mockDbToDbStepConfig.getInsertMode();
-            result = InsertMode.ORACLE_DIRECT_PATH;
-        }};
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setSqlId("SELECT_ALL");
+        stepConfig.setBean(BulkInsertEntity.class);
+        stepConfig.setInsertMode(InsertMode.ORACLE_DIRECT_PATH);
+        stepConfig.initialize();
+
+        final DeleteInsertBatchlet sut = new DeleteInsertBatchlet(
+                mockJobContext,
+                mockStepContext,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- execute
         sut.process();
@@ -309,9 +311,15 @@ public class DeleteInsertBatchletTest {
 
         // -------------------------------------------------- assert log
         OnMemoryLogWriter.assertLogContains("writer.sql", "insert /*+ APPEND */ into");
-        String[] expected = { "-INFO- clean table. table name=[bulk_insert_entity], delete count=[1]",
-            "-INFO- load progress. table name=[bulk_insert_entity], write count=[6]" };
-        OnMemoryLogWriter.assertLogContains("writer.memory", expected);
+        final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(messages, Matchers.contains(
+                containsString("-INFO- job name: [test-job] step name: [test-step] table name: [bulk_insert_entity] delete count: [1]"),
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [6]"),
+                allOf(
+                        containsString("-INFO- job name: [test-job] step name: [test-step]"),
+                        containsString("remaining count: [0]")
+                )
+        ));
     }
 
     /**
@@ -335,22 +343,23 @@ public class DeleteInsertBatchletTest {
         );
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getBean();
-            result = BulkInsertEntity.class;
-            mockDbToDbStepConfig.getSql();
-            result = createTransferQuery() + " where line_number between ? and ?";
-            mockDbToDbStepConfig.getInsertMode();
-            result = InsertMode.NORMAL;
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
+        stepConfig.setBean(BulkInsertEntity.class);
+        stepConfig.setInsertMode(InsertMode.NORMAL);
+        final UpdateSize size = new UpdateSize();
+        size.setSize(3);
+        size.setBean(WorkTableEntity.class);
+        stepConfig.setUpdateSize(size);
+        stepConfig.initialize();
 
-            final UpdateSize updateSize = new UpdateSize();
-            updateSize.setSize(3);
-            updateSize.setBean(WorkTableEntity.class);
-            mockDbToDbStepConfig.getUpdateSize();
-            result = updateSize;
-        }};
+
+        final DeleteInsertBatchlet sut = new DeleteInsertBatchlet(
+                mockJobContext,
+                mockStepContext,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- execute
         sut.process();
@@ -370,20 +379,22 @@ public class DeleteInsertBatchletTest {
         }
 
         // -------------------------------------------------- assert log
-        final List<String> messages = OnMemoryLogWriter.getMessages("writer.sql");
-
+        final List<String> commitLogs = OnMemoryLogWriter.getMessages("writer.sql");
         int commitLogCount = 0;
-        for (String message : messages) {
+        for (String message : commitLogs) {
             if (message.contains("transaction commit.")) {
                 commitLogCount++;
             }
         }
         assertThat("コミットが2回行われること", commitLogCount, is(2));
 
-        String[] expected = { "-INFO- clean table. table name=[bulk_insert_entity], delete count=[1]",
-            "-INFO- load progress. table name=[bulk_insert_entity], write count=[3]",
-            "-INFO- load progress. table name=[bulk_insert_entity], write count=[6]" };
-        OnMemoryLogWriter.assertLogContains("writer.memory", expected);
+        final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(messages, Matchers.contains(
+                containsString("-INFO- job name: [test-job] step name: [test-step] table name: [bulk_insert_entity] delete count: [1]"),
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [6]"),
+                containsString("remaining count: [3]"),
+                containsString("remaining count: [0]")
+        ));
     }
 
     /**
@@ -408,22 +419,22 @@ public class DeleteInsertBatchletTest {
         );
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getBean();
-            result = BulkInsertEntity.class;
-            mockDbToDbStepConfig.getSql();
-            result = createTransferQuery() + " where line_number between ? and ?";
-            mockDbToDbStepConfig.getInsertMode();
-            result = InsertMode.NORMAL;
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
+        stepConfig.setBean(BulkInsertEntity.class);
+        stepConfig.setInsertMode(InsertMode.NORMAL);
+        final UpdateSize size = new UpdateSize();
+        size.setSize(1);
+        size.setBean(WorkTableEntity.class);
+        stepConfig.setUpdateSize(size);
+        stepConfig.initialize();
 
-            final UpdateSize updateSize = new UpdateSize();
-            updateSize.setSize(1);
-            updateSize.setBean(WorkTableEntity.class);
-            mockDbToDbStepConfig.getUpdateSize();
-            result = updateSize;
-        }};
+        final DeleteInsertBatchlet sut = new DeleteInsertBatchlet(
+                mockJobContext,
+                mockStepContext,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- execute
         sut.process();
@@ -442,23 +453,25 @@ public class DeleteInsertBatchletTest {
         }
 
         // -------------------------------------------------- assert log
-        final List<String> messages = OnMemoryLogWriter.getMessages("writer.sql");
-
+        final List<String> sqlLogs = OnMemoryLogWriter.getMessages("writer.sql");
         int commitLogCount = 0;
-        for (String message : messages) {
+        for (String message : sqlLogs) {
             if (message.contains("transaction commit.")) {
                 commitLogCount++;
             }
         }
         assertThat("コミットが5回行われること", commitLogCount, is(5));
 
-        String[] expected = { "-INFO- clean table. table name=[bulk_insert_entity], delete count=[2]",
-            "-INFO- load progress. table name=[bulk_insert_entity], write count=[1]",
-            "-INFO- load progress. table name=[bulk_insert_entity], write count=[2]",
-            "-INFO- load progress. table name=[bulk_insert_entity], write count=[3]",
-            "-INFO- load progress. table name=[bulk_insert_entity], write count=[4]",
-            "-INFO- load progress. table name=[bulk_insert_entity], write count=[5]" };
-        OnMemoryLogWriter.assertLogContains("writer.memory", expected);
+        final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(messages, Matchers.contains(
+                containsString("-INFO- job name: [test-job] step name: [test-step] table name: [bulk_insert_entity] delete count: [2]"),
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [5]"),
+                containsString("remaining count: [4]"),
+                containsString("remaining count: [3]"),
+                containsString("remaining count: [2]"),
+                containsString("remaining count: [1]"),
+                containsString("remaining count: [0]")
+        ));
     }
 
     /**
@@ -482,14 +495,17 @@ public class DeleteInsertBatchletTest {
         );
 
         // -------------------------------------------------- setup objects that is injected
-        new NonStrictExpectations() {{
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getBean();
-            result = ArrayList.class;                            // テーブルが存在しないクラス
-            mockDbToDbStepConfig.getSql();
-            result = createTransferQuery();
-        }};
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
+        stepConfig.setBean(ArrayList.class);
+        stepConfig.setInsertMode(InsertMode.ORACLE_DIRECT_PATH);
+        
+        final DeleteInsertBatchlet sut = new DeleteInsertBatchlet(
+                mockJobContext,
+                mockStepContext,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         try {
             sut.process();

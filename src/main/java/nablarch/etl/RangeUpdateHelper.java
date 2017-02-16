@@ -24,12 +24,22 @@ import nablarch.etl.generator.MaxLineNumberSqlGenerator;
 public class RangeUpdateHelper {
 
     /** {@link JobContext} */
-    @Inject
-    private JobContext jobContext;
+    private final JobContext jobContext;
 
     /** {@link StepContext} */
+    private final StepContext stepContext;
+
+    /**
+     * コンストラクタ。
+     *
+     * @param jobContext {@link JobContext}
+     * @param stepContext {@link StepContext}
+     */
     @Inject
-    private StepContext stepContext;
+    public RangeUpdateHelper(final JobContext jobContext, final StepContext stepContext) {
+        this.jobContext = jobContext;
+        this.stepContext = stepContext;
+    }
 
     /**
      * {@link UpdateSize}の検証を行う。
@@ -46,9 +56,9 @@ public class RangeUpdateHelper {
     public void verifyUpdateSize(final UpdateSize updateSize) {
         final String jobId = jobContext.getJobName();
         final String stepId = stepContext.getStepName();
-        EtlUtil.verifyRequired(jobId, stepId, "updateSize > size", updateSize.getSize());
-        verifyUpdateSize(jobId, stepId, "updateSize > size", updateSize.getSize());
-        EtlUtil.verifyRequired(jobId, stepId, "updateSize > bean", updateSize.getBean());
+        EtlUtil.verifyRequired(jobId, stepId, "updateSize.size", updateSize.getSize());
+        verifyUpdateSize(jobId, stepId, "updateSize.size", updateSize.getSize());
+        EtlUtil.verifyRequired(jobId, stepId, "updateSize.bean", updateSize.getBean());
     }
 
     /**

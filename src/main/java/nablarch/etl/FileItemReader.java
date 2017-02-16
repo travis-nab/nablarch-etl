@@ -23,6 +23,7 @@ import nablarch.etl.config.EtlConfig;
 import nablarch.etl.config.FileToDbStepConfig;
 import nablarch.etl.config.PathConfig;
 import nablarch.etl.config.StepConfig;
+import nablarch.fw.batch.ee.progress.ProgressManager;
 
 /**
  * 入力ファイルからJavaオブジェクトへ変換を行う{@link javax.batch.api.chunk.ItemReader}実装クラス。
@@ -36,47 +37,99 @@ import nablarch.etl.config.StepConfig;
 public class FileItemReader extends AbstractItemReader {
 
     /** {@link JobContext} */
-    @Inject
-    private JobContext jobContext;
+    private final JobContext jobContext;
 
     /** {@link StepContext} */
-    @Inject
-    private StepContext stepContext;
-
+    private final StepContext stepContext;
+    
     /** ETLの設定 */
-    @EtlConfig
-    @Inject
-    private StepConfig stepConfig;
+    private final FileToDbStepConfig stepConfig;
 
     /** 入力ファイルのベースパス */
-    @PathConfig(BasePath.INPUT)
-    @Inject
-    private File inputFileBasePath;
+    private final File inputFileBasePath;
+
+     /** 進捗状況を管理するBean */
+    private final ProgressManager progressManager;
 
     /** データからJavaオブジェクトに変換を行うマッパー */
     private ObjectMapper<?> reader;
+
+    /**
+     * コンストラクタ。
+     * @param jobContext {@link JobContext}
+     * @param stepContext {@link StepContext}
+     * @param stepConfig ステップの設定
+     * @param inputFileBasePath 入力ファイルの配置ディレクトリ
+     * @param progressManager 進捗状況を管理するBean
+     */
+    @Inject
+    public FileItemReader(
+            final JobContext jobContext,
+            final StepContext stepContext,
+            @EtlConfig final StepConfig stepConfig,
+            @PathConfig(BasePath.INPUT) final File inputFileBasePath,
+            final ProgressManager progressManager) {
+        this.jobContext = jobContext;
+        this.stepContext = stepContext;
+        this.stepConfig = (FileToDbStepConfig) stepConfig;
+        this.inputFileBasePath = inputFileBasePath;
+        this.progressManager = progressManager;
+    }
 
     /**
      * 入力ファイルを開き、{@link ObjectMapper}を生成する。
      */
     @Override
     public void open(final Serializable checkpoint) throws Exception {
-
         final String jobId = jobContext.getJobName();
         final String stepId = stepContext.getStepName();
 
-        final FileToDbStepConfig config = (FileToDbStepConfig) stepConfig;
+        EtlUtil.verifyRequired(jobId, stepId, "bean", stepConfig.getBean());
+        EtlUtil.verifyRequired(jobId, stepId, "fileName", stepConfig.getFileName());
 
-        EtlUtil.verifyRequired(jobId, stepId, "bean", config.getBean());
-        EtlUtil.verifyRequired(jobId, stepId, "fileName", config.getFileName());
+        final File inputFilePath = new File(inputFileBasePath, stepConfig.getFileName());
 
-        final File inputFilePath = new File(inputFileBasePath, config.getFileName());
+        progressManager.setInputCount(getNumberOfRecordInInputFile(inputFilePath));
+
+        reader = ObjectMapperFactory.create(
+                stepConfig.getBean(), new FileInputStream(inputFilePath));
+    }
+
+    /**
+     * 入力ファイルのレコード数を返す。
+     * @param inputFilePath 入力ファイルパス
+     * @return レコード数
+     */
+    private long getNumberOfRecordInInputFile(final File inputFilePath) {
+        final ObjectMapper<?> inputCountReader = createReader(inputFilePath);
         try {
-            reader = ObjectMapperFactory.create(
-                        config.getBean(), new FileInputStream(inputFilePath));
+            long inputCount = 0;
+            while (true) {
+                if (inputCountReader.read() == null) {
+                    break;
+                }
+                inputCount++;
+            }
+            return inputCount;
+        } finally {
+            inputCountReader.close();
+        }
+    }
+
+    /**
+     * 入力ファイルを読み込むためのリーダを生成する。
+     *
+     * @param inputFilePath 入力ファイルパス
+     * @return リーダ
+     */
+    private ObjectMapper<?> createReader(final File inputFilePath) {
+        try {
+            return ObjectMapperFactory.create(
+                    stepConfig.getBean(), new FileInputStream(inputFilePath));
         } catch (FileNotFoundException e) {
             final String message = MessageUtil.createMessage(MessageLevel.ERROR, "nablarch.etl.input-file-not-found",
-                    inputFilePath.getAbsolutePath()).formatMessage();
+                    inputFilePath.getAbsolutePath())
+                                              .formatMessage();
             OperationLogger.write(LogLevel.ERROR, message, e);
             throw new BatchRuntimeException(message, e);
         }

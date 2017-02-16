@@ -1,29 +1,10 @@
 package nablarch.etl;
 
-import mockit.Deencapsulation;
-import mockit.Expectations;
-import mockit.Mocked;
-import nablarch.common.databind.csv.Csv;
-import nablarch.core.db.connection.ConnectionFactory;
-import nablarch.core.db.connection.DbConnectionContext;
-import nablarch.core.db.connection.TransactionManagerConnection;
-import nablarch.core.transaction.TransactionContext;
-import nablarch.core.transaction.TransactionFactory;
-import nablarch.core.validation.ee.Domain;
-import nablarch.etl.config.ValidationStepConfig;
-import nablarch.test.support.SystemRepositoryResource;
-import nablarch.test.support.db.helper.DatabaseTestRunner;
-import nablarch.test.support.db.helper.VariousDbTestHelper;
-import nablarch.test.support.log.app.OnMemoryLogWriter;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TestName;
-import org.junit.runner.RunWith;
+import static org.hamcrest.CoreMatchers.*;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+
+import java.util.List;
 
 import javax.batch.runtime.context.JobContext;
 import javax.batch.runtime.context.StepContext;
@@ -33,13 +14,36 @@ import javax.persistence.Id;
 import javax.persistence.Table;
 import javax.persistence.Transient;
 import javax.validation.constraints.AssertTrue;
-import java.util.List;
 
-import static org.hamcrest.CoreMatchers.allOf;
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
-import static org.junit.matchers.JUnitMatchers.containsString;
+import org.hamcrest.Matchers;
+
+import nablarch.common.databind.csv.Csv;
+import nablarch.core.db.connection.ConnectionFactory;
+import nablarch.core.db.connection.DbConnectionContext;
+import nablarch.core.db.connection.TransactionManagerConnection;
+import nablarch.core.transaction.TransactionContext;
+import nablarch.core.transaction.TransactionFactory;
+import nablarch.core.validation.ee.Domain;
+import nablarch.etl.config.ValidationStepConfig;
+import nablarch.fw.batch.ee.progress.BasicProgressManager;
+import nablarch.test.support.SystemRepositoryResource;
+import nablarch.test.support.db.helper.DatabaseTestRunner;
+import nablarch.test.support.db.helper.VariousDbTestHelper;
+import nablarch.test.support.log.app.OnMemoryLogWriter;
+
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.junit.rules.TestName;
+import org.junit.runner.RunWith;
+
+import mockit.Expectations;
+import mockit.Mocked;
 
 /**
  * {@link ValidationBatchlet}のテスト。
@@ -49,10 +53,18 @@ public class ValidationBatchletTest {
 
     @ClassRule
     public static SystemRepositoryResource resource = new SystemRepositoryResource("nablarch/etl/validation.xml");
+    
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     @Rule
     public TestName testName = new TestName();
 
+    @Mocked
+    JobContext mockJobContext;
+
+    @Mocked
+    StepContext mockStepContext;
 
     @BeforeClass
     public static void setUpClass() throws Exception {
@@ -69,28 +81,10 @@ public class ValidationBatchletTest {
         TransactionContext.removeTransaction();
     }
 
-    /** テスト対象 */
-    ValidationBatchlet sut = new ValidationBatchlet();
-
-    @Mocked
-    JobContext mockJobContext;
-
-    @Mocked
-    StepContext mockStepContext;
-
-    ValidationStepConfig stepConfig;
-
     @Before
     public void setUp() throws Exception {
+
         // set mock object
-        stepConfig = new ValidationStepConfig();
-        stepConfig.setBean(ValidationBatchletBean.class);
-        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
-
-        Deencapsulation.setField(sut, "stepConfig", stepConfig);
-        Deencapsulation.setField(sut, mockJobContext);
-        Deencapsulation.setField(sut, mockStepContext);
-
         new Expectations() {{
             mockJobContext.getJobName();
             final String methodName = testName.getMethodName();
@@ -131,8 +125,19 @@ public class ValidationBatchletTest {
         // -------------------------------------------------- setup input data
         VariousDbTestHelper.setUpTable(
                 new ValidationBatchletEntity(1L, "あ", "か", "1"),
-                new ValidationBatchletEntity(2L, "い", "き", "1")
+                new ValidationBatchletEntity(2L, "い", "き", "1"),
+                new ValidationBatchletEntity(3L, "う", "く", "1")
         );
+
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
+        sut.progressLogOutputInterval = "2";
 
         // -------------------------------------------------- execute
         assertThat("エラーなしなのでSUCCESS", sut.process(), is("SUCCESS"));
@@ -140,18 +145,18 @@ public class ValidationBatchletTest {
         // -------------------------------------------------- assert table
         final List<ValidationBatchletErrorEntity> errors = VariousDbTestHelper.findAll(
                 ValidationBatchletErrorEntity.class);
-        assertThat("エラーはないのでレコードは登録せれない", errors.isEmpty(), is(true));
+        assertThat("エラーはないのでレコードは登録されない", errors.isEmpty(), is(true));
 
         final List<ValidationBatchletEntity> inputs = VariousDbTestHelper.findAll(ValidationBatchletEntity.class);
-        assertThat("エラーはないのでレコードは減らない", inputs.size(), is(2));
+        assertThat("エラーはないのでレコードは減らない", inputs.size(), is(3));
 
         // -------------------------------------------------- assert log
         final List<String> logMessages = OnMemoryLogWriter.getMessages("writer.memory");
         assertThat("ログは結果ログの1つだけ", logMessages.size(), is(1));
-        assertThat("バリデーション結果がログ出力される", trimCrlf(logMessages.get(0)),
-                is("-INFO- validation result."
+        assertThat("バリデーション結果がログ出力される", logMessages.get(0),
+                containsString("-INFO- validation result."
                         + " bean class=[" + ValidationBatchletBean.class.getName() + "],"
-                        + " line count=[2],"
+                        + " line count=[3],"
                         + " error count=[0]"));
 
         // -------------------------------------------------- assert sql
@@ -164,6 +169,14 @@ public class ValidationBatchletTest {
                 assertThat("スキーマを指定したテーブル名になっていること", sqlLog, containsString("ssd.etl_validation_test"));
             }
         }
+
+        // -------------------------------------------------- assert progress log
+        final List<String> progress = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(progress, Matchers.contains(
+                containsString("-INFO- job name: [validationSuccess_job] step name: [validationSuccess_step] input count: [3]"),
+                containsString("remaining count: [1]"),
+                containsString("remaining count: [0]")
+        ));
     }
 
     /**
@@ -178,7 +191,15 @@ public class ValidationBatchletTest {
     @Test
     public void validation_singleError() throws Exception {
         // -------------------------------------------------- set continue mode
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
         stepConfig.setMode(ValidationStepConfig.Mode.CONTINUE);
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- setup input data
         VariousDbTestHelper.setUpTable(
@@ -213,7 +234,7 @@ public class ValidationBatchletTest {
         final List<String> logMessages = OnMemoryLogWriter.getMessages("writer.memory");
         assertThat("ログは結果ログの2つ", logMessages.size(), is(2));
 
-        assertThat("エラー情報がログに出力されること", trimCrlf(logMessages.get(0)),
+        assertThat("エラー情報がログに出力されること", logMessages.get(0),
                 allOf(
                         containsString("-WARN-"),
                         containsString("validation error has occurred. "),
@@ -222,8 +243,8 @@ public class ValidationBatchletTest {
                         containsString("error message=[5文字以内で入力してください。]"),
                         containsString("line number=[2]")
                 ));
-        assertThat("バリデーション結果がログ出力される", trimCrlf(logMessages.get(1)),
-                is("-INFO- validation result."
+        assertThat("バリデーション結果がログ出力される", logMessages.get(1),
+                containsString("-INFO- validation result."
                         + " bean class=[" + ValidationBatchletBean.class.getName() + "],"
                         + " line count=[3],"
                         + " error count=[1]"));
@@ -246,6 +267,12 @@ public class ValidationBatchletTest {
                         ));
             }
         }
+
+        final List<String> progress = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(progress, Matchers.contains(
+                containsString("job name: [validation_singleError_job] step name: [validation_singleError_step] input count: [3]"),
+                containsString("remaining count: [0]")
+        ));
     }
 
     /**
@@ -259,10 +286,17 @@ public class ValidationBatchletTest {
     @Test
     public void validation_multiError() throws Exception {
         // -------------------------------------------------- set continue mode
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
         stepConfig.setMode(ValidationStepConfig.Mode.CONTINUE);
-
-        // -------------------------------------------------- set error limit
         stepConfig.setErrorLimit(-1);
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
+        
         // -------------------------------------------------- setup input data
         VariousDbTestHelper.setUpTable(
                 new ValidationBatchletEntity(1L, "あ", "か", "1"),
@@ -299,11 +333,17 @@ public class ValidationBatchletTest {
         OnMemoryLogWriter.assertLogContains("writer.memory",
                 "bean class=[nablarch.etl.ValidationBatchletTest$ValidationBatchletBean], property name=[age]");
 
-        assertThat("バリデーション結果がログ出力される", trimCrlf(logMessages.get(3)),
-                is("-INFO- validation result."
+        assertThat("バリデーション結果がログ出力される", logMessages.get(3),
+                containsString("-INFO- validation result."
                         + " bean class=[" + ValidationBatchletBean.class.getName() + "],"
                         + " line count=[5],"
                         + " error count=[3]"));
+
+        final List<String> progress = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(progress, Matchers.contains(
+                containsString("job name: [validation_multiError_job] step name: [validation_multiError_step] input count: [5]"),
+                containsString("remaining count: [0]")
+        ));
     }
 
     /**
@@ -314,7 +354,15 @@ public class ValidationBatchletTest {
     @Test
     public void validation_betweenItemsError() throws Exception {
         // -------------------------------------------------- set continue mode
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
         stepConfig.setMode(ValidationStepConfig.Mode.CONTINUE);
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- setup input data
         VariousDbTestHelper.setUpTable(
@@ -344,8 +392,8 @@ public class ValidationBatchletTest {
         OnMemoryLogWriter.assertLogContains("writer.memory",
                 "bean class=[nablarch.etl.ValidationBatchletTest$ValidationBatchletBean], property name=[nameLength],");
 
-        assertThat("エラーなしのログが出力される", trimCrlf(logMessages.get(1)),
-                is("-INFO- validation result."
+        assertThat("エラーなしのログが出力される", logMessages.get(1),
+                containsString("-INFO- validation result."
                         + " bean class=[" + ValidationBatchletBean.class.getName() + "],"
                         + " line count=[5],"
                         + " error count=[1]"));
@@ -358,6 +406,15 @@ public class ValidationBatchletTest {
      */
     @Test
     public void validation_aborted() throws Exception {
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
+        
         // -------------------------------------------------- setup input data
         VariousDbTestHelper.setUpTable(
                 new ValidationBatchletEntity(1L, "あ", "か", "1"),
@@ -386,8 +443,8 @@ public class ValidationBatchletTest {
 
         // -------------------------------------------------- assert log
         final List<String> logMessages = OnMemoryLogWriter.getMessages("writer.memory");
-        assertThat("バリデーション結果がログ出力される", trimCrlf(logMessages.get(3)),
-                is("-INFO- validation result."
+        assertThat("バリデーション結果がログ出力される", logMessages.get(3),
+                containsString("-INFO- validation result."
                         + " bean class=[" + ValidationBatchletBean.class.getName() + "],"
                         + " line count=[5],"
                         + " error count=[3]"));
@@ -398,6 +455,14 @@ public class ValidationBatchletTest {
      */
     @Test
     public void testErrorLimitOver() throws Exception {
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- setup error limit
         stepConfig.setErrorLimit(5);
@@ -423,7 +488,6 @@ public class ValidationBatchletTest {
                     + " bean class=[" + ValidationBatchletBean.class.getName() + ']'));
         }
 
-
         // -------------------------------------------------- assert log
         // 処理順は保証されないので件数のみアサート
         final List<String> logMessages = OnMemoryLogWriter.getMessages("writer.memory");
@@ -445,7 +509,15 @@ public class ValidationBatchletTest {
     public void testErrorLimitIsZero() throws Exception {
 
         // -------------------------------------------------- setup error limit
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
         stepConfig.setErrorLimit(0);
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- setup input data
         VariousDbTestHelper.setUpTable(
@@ -484,7 +556,15 @@ public class ValidationBatchletTest {
     @Test
     public void testErrorLimitOver_OneLine() throws Exception {
         // -------------------------------------------------- setup error limit
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
         stepConfig.setErrorLimit(2);
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- setup input data
         VariousDbTestHelper.setUpTable(
@@ -520,13 +600,19 @@ public class ValidationBatchletTest {
      */
     @Test
     public void testInvalidBean() throws Exception {
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
         stepConfig.setBean(null);
-        try {
-            sut.process();
-            fail();
-        } catch (Exception e) {
-            assertThat(e.getMessage(), containsString("bean is required."));
-        }
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
+        stepConfig.setErrorLimit(2);
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
+        
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("bean is required");
+        sut.process();
     }
 
     /**
@@ -534,13 +620,19 @@ public class ValidationBatchletTest {
      */
     @Test
     public void testInvalidErrorTable() throws Exception {
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
         stepConfig.setErrorTableEntity(null);
-        try {
-            sut.process();
-            fail();
-        } catch (Exception e) {
-            assertThat(e.getMessage(), containsString("errorEntity is required."));
-        }
+        
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
+
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("errorEntity is required.");
+        sut.process();
     }
 
     /**
@@ -548,23 +640,81 @@ public class ValidationBatchletTest {
      */
     @Test
     public void testInvalidMode() throws Exception {
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorEntity.class);
         stepConfig.setMode(null);
-        try {
-            sut.process();
-            fail();
-        } catch (Exception e) {
-            assertThat(e.getMessage(), containsString("mode is required."));
-        }
+
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
+
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("mode is required.");
+        sut.process();
     }
 
-    /**
-     * ログメッセージの最後の改行を削除する。
-     *
-     * @param message メッセージ
-     * @return 改行を削除したメッセージ
-     */
-    private static String trimCrlf(String message) {
-        return message.replaceAll("\r\n|\n", "");
+    @Test
+    public void testProgressLog() throws Exception {
+        // -------------------------------------------------- setup error limit
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
+        stepConfig.setErrorLimit(2);
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
+
+        // -------------------------------------------------- setup input data
+        VariousDbTestHelper.delete(ValidationBatchletEntity.class);
+        for (int i = 1; i <= 2000; i++) {
+            VariousDbTestHelper.insert(new ValidationBatchletEntity((long) i, "あ", "か", "10"));
+        }
+
+        assertThat(sut.process(), is("SUCCESS"));
+
+        final List<String> progress = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(progress, Matchers.contains(
+                containsString("job name: [testProgressLog_job] step name: [testProgressLog_step] input count: [2000]"),
+                containsString("remaining count: [1000]"),
+                containsString("remaining count: [0]")
+        ));
+    }
+    
+    @Test
+    public void invalidProgressOutputInterval_shouldUseDefaultValue() throws Exception {
+        // -------------------------------------------------- setup error limit
+        final ValidationStepConfig stepConfig = new ValidationStepConfig();
+        stepConfig.setBean(ValidationBatchletBean.class);
+        stepConfig.setErrorTableEntity(ValidationBatchletErrorBean.class);
+        stepConfig.setErrorLimit(2);
+        final ValidationBatchlet sut = new ValidationBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new BasicProgressManager(mockJobContext, mockStepContext));
+        sut.progressLogOutputInterval = "abc";
+
+        // -------------------------------------------------- setup input data
+        VariousDbTestHelper.delete(ValidationBatchletEntity.class);
+        for (int i = 1; i <= 2000; i++) {
+            VariousDbTestHelper.insert(new ValidationBatchletEntity((long) i, "あ", "か", "10"));
+        }
+
+        assertThat(sut.process(), is("SUCCESS"));
+
+        final List<String> progress = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(progress, Matchers.contains(
+                containsString("input count: [2000]"),
+                containsString("remaining count: [1000]"),
+                containsString("remaining count: [0]")
+        ));
+        
+        OnMemoryLogWriter.assertLogContains("writer.memory", "-WARN- progress log output interval is not numeric. use the default value(1000)");
     }
 
     @Entity
