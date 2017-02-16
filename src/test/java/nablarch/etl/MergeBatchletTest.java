@@ -3,10 +3,10 @@ package nablarch.etl;
 import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
-import static org.junit.matchers.JUnitMatchers.containsString;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import javax.batch.runtime.context.JobContext;
@@ -16,6 +16,9 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
 
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
+
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
@@ -23,6 +26,7 @@ import nablarch.core.db.statement.exception.DuplicateStatementException;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.core.transaction.TransactionFactory;
 import nablarch.etl.config.DbToDbStepConfig;
+import nablarch.fw.batch.ee.progress.BasicProgressManager;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
@@ -33,10 +37,11 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
-import mockit.Deencapsulation;
 import mockit.Expectations;
 import mockit.Mocked;
 
@@ -49,19 +54,16 @@ public class MergeBatchletTest {
     @ClassRule
     public static SystemRepositoryResource resource = new SystemRepositoryResource("db-default.xml");
 
-    TransactionManagerConnection connection;
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
-    /** テスト対象 */
-    MergeBatchlet sut = new MergeBatchlet();
+    TransactionManagerConnection connection;
 
     @Mocked
     private JobContext mockJobContext;
 
     @Mocked
     private StepContext mockStepContext;
-
-    @Mocked
-    private DbToDbStepConfig mockDbToDbStepConfig;
 
     @BeforeClass
     public static void setUpClass() throws Exception {
@@ -91,13 +93,6 @@ public class MergeBatchletTest {
             mockJobContext.getJobName();
             result = "test-job";
         }};
-        Deencapsulation.setField(sut, "jobContext", mockJobContext);
-        Deencapsulation.setField(sut, "stepContext", mockStepContext);
-        Deencapsulation.setField(sut, "stepConfig", mockDbToDbStepConfig);
-        final RangeUpdateHelper rangeUpdateHelper = new RangeUpdateHelper();
-        Deencapsulation.setField(rangeUpdateHelper, mockJobContext);
-        Deencapsulation.setField(rangeUpdateHelper, mockStepContext);
-        Deencapsulation.setField(sut, rangeUpdateHelper);
 
         // clear resource
         OnMemoryLogWriter.clear();
@@ -113,100 +108,99 @@ public class MergeBatchletTest {
     }
 
 
-    /**
-     * 必須項目が指定されなかった場合、例外が送出されること。
-     */
     @Test
-    public void testRequired() throws Exception {
+    public void beanSetNull_shouldThrowException() throws Exception {
 
-        // bean
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
 
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = null;
-        }};
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
-        try {
-            sut.process();
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("bean is required. jobId = [test-job], stepId = [test-step]"));
-        }
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("bean is required. jobId = [test-job], stepId = [test-step]");
+        sut.process();
+    }
 
-        // sqlId
+    @Test
+    public void sqlIdSetNull_shouldThroewException() throws Exception {
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
 
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = null;
-        }};
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
-        try {
-            sut.process();
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("sqlId is required. jobId = [test-job], stepId = [test-step]"));
-        }
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("sqlId is required. jobId = [test-job], stepId = [test-step]");
+        sut.process();
+    }
 
-        // mergeOnColumns
+    @Test
+    public void mergeOnColumnsSetNull_shouldThrowException() throws Exception {
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setSqlId("test");
 
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "test";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = null;
-        }};
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
-        try {
-            sut.process();
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("mergeOnColumns is required. jobId = [test-job], stepId = [test-step]"));
-        }
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("mergeOnColumns is required. jobId = [test-job], stepId = [test-step]");
+        sut.process();
+    }
 
-        // updateSize
+    @Test
+    public void updateSizeSetNull_shouldThrowException() throws Exception {
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Collections.singletonList("hoge"));
+        stepConfig.setSqlId("test");
+        final DbToDbStepConfig.UpdateSize size = new DbToDbStepConfig.UpdateSize();
+        stepConfig.setUpdateSize(size);
 
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "test";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = "hoge";
-            mockDbToDbStepConfig.getUpdateSize();
-            DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
-            result = updateSize;
-        }};
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
-        try {
-            sut.process();
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("updateSize > size is required. jobId = [test-job], stepId = [test-step]"));
-        }
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("updateSize.size is required. jobId = [test-job], stepId = [test-step]");
+        sut.process();
+    }
 
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "test";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = "hoge";
-            mockDbToDbStepConfig.getUpdateSize();
-            DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
-            updateSize.setSize(2000);
-            result = updateSize;
-        }};
+    @Test
+    public void workTableBeanSetNull_shouldThrowException() throws Exception {
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Collections.singletonList("hoge"));
+        stepConfig.setSqlId("test");
+        final DbToDbStepConfig.UpdateSize size = new DbToDbStepConfig.UpdateSize();
+        size.setSize(1000);
+        stepConfig.setUpdateSize(size);
 
-        try {
-            sut.process();
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("updateSize > bean is required. jobId = [test-job], stepId = [test-step]"));
-        }
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
+
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("updateSize.bean is required. jobId = [test-job], stepId = [test-step]");
+        sut.process();
     }
 
     /**
@@ -214,27 +208,26 @@ public class MergeBatchletTest {
      */
     @Test
     public void testInvalidUpdateSize() throws Exception {
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Collections.singletonList("hoge"));
+        stepConfig.setSqlId("test");
+        final DbToDbStepConfig.UpdateSize size = new DbToDbStepConfig.UpdateSize();
+        size.setSize(0);
+        stepConfig.setUpdateSize(size);
 
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "test";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = "hoge";
-            mockDbToDbStepConfig.getUpdateSize();
-            DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
-            updateSize.setSize(0);
-            result = updateSize;
-        }};
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
-        try {
-            sut.process();
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("updateSize > size must be greater than 0. "
-                    + "jobId = [test-job], stepId = [test-step], size = [0]"));
-        }
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("updateSize.size must be greater than 0. "
+                + "jobId = [test-job], stepId = [test-step], size = [0]");
+        sut.process();
+
     }
 
     /**
@@ -257,19 +250,18 @@ public class MergeBatchletTest {
         );
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getSql();
-            result = "select work_user_id user_id, work_name name, work_address address"
-                        + " from etl_merge_input_work_entity";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = Arrays.asList("user_id");
-            mockDbToDbStepConfig.getUpdateSize();
-            result = null;
-        }};
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Collections.singletonList("user_id"));
+        stepConfig.setSqlId("SELECT_ALL");
+        stepConfig.initialize();
+
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- execute
         sut.process();
@@ -288,33 +280,15 @@ public class MergeBatchletTest {
         }
 
         OnMemoryLogWriter.assertLogContains("writer.sql", "update count = [5]");
-        OnMemoryLogWriter.assertLogContains("writer.memory", "-INFO- load progress. table name=[etl_merge_entity], merge count=[5]");
 
-        assertSqlExecutionAndCommitTimes("update count = [5]");
-    }
-
-    private static final String COMMIT_MSG = "transaction commit.";
-
-    /**
-     * SQL実行とコミットの回数を検証する。
-     * @param expectedMessages 「update count = [n]」と「transaction commit.」メッセージ
-     */
-    private void assertSqlExecutionAndCommitTimes(final String... expectedMessages) {
-
-        // 実際に出力された順番で、SQL実行とコミットのメッセージを抜き出します。
-        final List<String> actualMessages = new ArrayList<String>();
-        for (String message : OnMemoryLogWriter.getMessages("writer.sql")) {
-            if (message.contains("update count = ")
-                    || message.contains(COMMIT_MSG)) {
-                actualMessages.add(message);
-            }
-        }
-
-        // 実際に出力された順番のメッセージと、期待するメッセージをアサートします。
-        assertThat(actualMessages.size(), is(expectedMessages.length));
-        for (int i = 0; i < expectedMessages.length; i++) {
-            assertThat(actualMessages.get(i), is(containsString(expectedMessages[i])));
-        }
+        final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(messages, Matchers.contains(
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [5]"),
+                allOf(
+                        containsString("-INFO- job name: [test-job] step name: [test-step]"),
+                        containsString("remaining count: [0]")
+                )
+        ));
     }
 
     /**
@@ -337,22 +311,22 @@ public class MergeBatchletTest {
         );
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getSql();
-            result = "select work_user_id user_id, work_name name, work_address address"
-                    + " from etl_merge_input_work_entity where line_number between ? and ?";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = Arrays.asList("user_id");
-            mockDbToDbStepConfig.getUpdateSize();
-            DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
-            updateSize.setSize(2);
-            updateSize.setBean(EtlMergeInputWorkEntity.class);
-            result = updateSize;
-        }};
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Collections.singletonList("user_id"));
+        stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
+        final DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
+        updateSize.setSize(2);
+        updateSize.setBean(EtlMergeInputWorkEntity.class);
+        stepConfig.setUpdateSize(updateSize);
+        stepConfig.initialize();
+
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- execute
         sut.process();
@@ -374,10 +348,23 @@ public class MergeBatchletTest {
                 "update count = [2]", COMMIT_MSG,
                 "update count = [2]", COMMIT_MSG,
                 "update count = [1]", COMMIT_MSG);
-        String[] expected = { "-INFO- load progress. table name=[etl_merge_entity], merge count=[2]",
-            "-INFO- load progress. table name=[etl_merge_entity], merge count=[4]",
-            "-INFO- load progress. table name=[etl_merge_entity], merge count=[5]" };
-        OnMemoryLogWriter.assertLogContains("writer.memory", expected);
+
+        final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(messages, Matchers.contains(
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [5]"),
+                allOf(
+                        containsString("-INFO- job name: [test-job] step name: [test-step] "),
+                        containsString("remaining count: [3]")
+                ),
+                allOf(
+                        containsString("-INFO- job name: [test-job] step name: [test-step] "),
+                        containsString("remaining count: [1]")
+                ),
+                allOf(
+                        containsString("-INFO- job name: [test-job] step name: [test-step] "),
+                        containsString("remaining count: [0]")
+                )
+        ));
     }
 
     /**
@@ -402,23 +389,22 @@ public class MergeBatchletTest {
         );
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getSql();
-            result = "select work_user_id user_id, work_name name, work_address address"
-                    + " from etl_merge_input_work_entity where line_number between ? and ?"
-                    + " and work_user_id not in(3, 4)";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = Arrays.asList("user_id");
-            mockDbToDbStepConfig.getUpdateSize();
-            DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
-            updateSize.setSize(2);
-            updateSize.setBean(EtlMergeInputWorkEntity.class);
-            result = updateSize;
-        }};
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Collections.singletonList("user_id"));
+        stepConfig.setSqlId("SELECT_ALL_WITH_RANGE_AND_FILTER");
+        final DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
+        updateSize.setSize(2);
+        updateSize.setBean(EtlMergeInputWorkEntity.class);
+        stepConfig.setUpdateSize(updateSize);
+        stepConfig.initialize();
+
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- execute
         sut.process();
@@ -448,10 +434,23 @@ public class MergeBatchletTest {
                 "update count = [2]", COMMIT_MSG,
                 "update count = [0]", COMMIT_MSG,
                 "update count = [1]", COMMIT_MSG);
-        String[] expected = { "-INFO- load progress. table name=[etl_merge_entity], merge count=[2]",
-            "-INFO- load progress. table name=[etl_merge_entity], merge count=[2]",
-            "-INFO- load progress. table name=[etl_merge_entity], merge count=[3]" };
-        OnMemoryLogWriter.assertLogContains("writer.memory", expected);
+
+        final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(messages, Matchers.contains(
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [5]"),
+                allOf(
+                        containsString("-INFO- job name: [test-job] step name: [test-step] "),
+                        containsString("remaining count: [3]")
+                ),
+                allOf(
+                        containsString("-INFO- job name: [test-job] step name: [test-step] "),
+                        containsString("remaining count: [1]")
+                ),
+                allOf(
+                        containsString("-INFO- job name: [test-job] step name: [test-step] "),
+                        containsString("remaining count: [0]")
+                )
+        ));
     }
 
     /**
@@ -468,22 +467,21 @@ public class MergeBatchletTest {
         );
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getSql();
-            result = "select work_user_id user_id, work_name name, work_address address"
-                    + " from etl_merge_input_work_entity where line_number between ? and ?";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = Arrays.asList("user_id");
-            mockDbToDbStepConfig.getUpdateSize();
-            DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
-            updateSize.setSize(2);
-            updateSize.setBean(EtlMergeInputWorkEntity.class);
-            result = updateSize;
-        }};
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Collections.singletonList("user_id"));
+        stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
+        final DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
+        updateSize.setSize(2);
+        updateSize.setBean(EtlMergeInputWorkEntity.class);
+        stepConfig.setUpdateSize(updateSize);
+        stepConfig.initialize();
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- execute
         sut.process();
@@ -520,19 +518,17 @@ public class MergeBatchletTest {
                 new EtlMergeEntity(5L, "name5", "更新される住所"));
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getSql();
-            result = "select work_user_id user_id, work_name name, work_address address"
-                        + " from etl_merge_input_work_entity";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = Arrays.asList("user_id", "name");
-            mockDbToDbStepConfig.getUpdateSize();
-            result = null;
-        }};
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Arrays.asList("user_id", "name"));
+        stepConfig.setSqlId("SELECT_ALL");
+        stepConfig.initialize();
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- execute
         sut.process();
@@ -550,7 +546,11 @@ public class MergeBatchletTest {
         }
 
         assertSqlExecutionAndCommitTimes("update count = [5]");
-        OnMemoryLogWriter.assertLogContains("writer.memory", "-INFO- load progress. table name=[etl_merge_entity], merge count=[5]");
+        final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(messages, Matchers.contains(
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [5]"),
+                containsString("remaining count: [0]")
+        ));
     }
 
     /**
@@ -572,23 +572,22 @@ public class MergeBatchletTest {
                 new EtlMergeEntity(5L, "name5", "更新される住所"));
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getSql();
-            result = "select work_user_id user_id, work_name name, work_address address"
-                    + " from etl_merge_input_work_entity where line_number between ? and ?";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = Arrays.asList("user_id", "name");
-            mockDbToDbStepConfig.getUpdateSize();
-            DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
-            updateSize.setSize(2);
-            updateSize.setBean(EtlMergeInputWorkEntity.class);
-            result = updateSize;
-        }};
-
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Arrays.asList("user_id", "name"));
+        stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
+        final DbToDbStepConfig.UpdateSize size = new DbToDbStepConfig.UpdateSize();
+        size.setSize(2);
+        size.setBean(EtlMergeInputWorkEntity.class);
+        stepConfig.setUpdateSize(size);
+        stepConfig.initialize();
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
+        
         // -------------------------------------------------- execute
         sut.process();
         connection.commit();
@@ -608,10 +607,14 @@ public class MergeBatchletTest {
                 "update count = [2]", COMMIT_MSG,
                 "update count = [2]", COMMIT_MSG,
                 "update count = [1]", COMMIT_MSG);
-        String[] expected = { "-INFO- load progress. table name=[etl_merge_entity], merge count=[2]",
-            "-INFO- load progress. table name=[etl_merge_entity], merge count=[4]",
-            "-INFO- load progress. table name=[etl_merge_entity], merge count=[5]" };
-        OnMemoryLogWriter.assertLogContains("writer.memory", expected);
+
+        final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(messages, Matchers.contains(
+                containsString("input count: [5]"),
+                containsString("remaining count: [3]"),
+                containsString("remaining count: [1]"),
+                containsString("remaining count: [0]")
+        ));
     }
 
     /**
@@ -632,19 +635,17 @@ public class MergeBatchletTest {
                 new EtlMergeEntity(3L, "3", "3"));
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getSql();
-            result = "select work_user_id user_id, work_name name, work_address address"
-                        + " from etl_merge_input_work_entity";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = Arrays.asList("user_id", "name");
-            mockDbToDbStepConfig.getUpdateSize();
-            result = null;
-        }};
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Arrays.asList("user_id", "name"));
+        stepConfig.setSqlId("SELECT_ALL");
+        stepConfig.initialize();
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- execute
         try {
@@ -681,22 +682,21 @@ public class MergeBatchletTest {
                 new EtlMergeEntity(3L, "3", "3"));
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getSql();
-            result = "select work_user_id user_id, work_name name, work_address address"
-                    + " from etl_merge_input_work_entity where line_number between ? and ?";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = Arrays.asList("user_id", "name");
-            mockDbToDbStepConfig.getUpdateSize();
-            DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
-            updateSize.setSize(2);
-            updateSize.setBean(EtlMergeInputWorkEntity.class);
-            result = updateSize;
-        }};
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Arrays.asList("user_id", "name"));
+        stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
+        final DbToDbStepConfig.UpdateSize size = new DbToDbStepConfig.UpdateSize();
+        size.setSize(2);
+        size.setBean(EtlMergeInputWorkEntity.class);
+        stepConfig.setUpdateSize(size);
+        stepConfig.initialize();
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- execute
         try {
@@ -721,7 +721,11 @@ public class MergeBatchletTest {
         assertThat(result.get(2).name, is("3"));
         assertThat(result.get(2).address, is("3"));
 
-        OnMemoryLogWriter.assertLogContains("writer.memory", "-INFO- load progress. table name=[etl_merge_entity], merge count=[2]");
+        final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
+        assertThat(messages, Matchers.contains(
+                containsString("input count: [5]"),
+                containsString("remaining count: [3]")
+        ));
     }
 
     /**
@@ -731,34 +735,52 @@ public class MergeBatchletTest {
     public void invalidSqlUsingSplit() throws Exception {
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToDbStepConfig.getBean();
-            result = EtlMergeEntity.class;
-            mockDbToDbStepConfig.getSqlId();
-            result = "dummy";
-            mockDbToDbStepConfig.getSql();
-            result = "select work_user_id user_id, work_name name, work_address address"
-                    + " from etl_merge_input_work_entity";
-            mockDbToDbStepConfig.getMergeOnColumns();
-            result = Arrays.asList("user_id", "name");
-            mockDbToDbStepConfig.getUpdateSize();
-            DbToDbStepConfig.UpdateSize updateSize = new DbToDbStepConfig.UpdateSize();
-            updateSize.setSize(2);
-            updateSize.setBean(EtlMergeInputWorkEntity.class);
-            result = updateSize;
-        }};
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeEntity.class);
+        stepConfig.setMergeOnColumns(Arrays.asList("user_id", "name"));
+        stepConfig.setSqlId("SELECT_ALL");
+        final DbToDbStepConfig.UpdateSize size = new DbToDbStepConfig.UpdateSize();
+        size.setSize(2);
+        size.setBean(EtlMergeInputWorkEntity.class);
+        stepConfig.setUpdateSize(size);
+        stepConfig.initialize();
+        final MergeBatchlet sut = new MergeBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new RangeUpdateHelper(mockJobContext, mockStepContext),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         // -------------------------------------------------- execute
-        try {
-            sut.process();
-            fail("SQL文にINパラメータがないのでここまでこない");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), is(
-                              "sql is invalid. "
-                            + "please include a range of data on the condition of the sql statement using the two input parameters. "
-                            + "ex) \"where line_number between ? and ?\" "
-                            + "sqlId = [dummy]"));
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("sql is invalid. "
+                + "please include a range of data on the condition of the sql statement using the two input parameters. "
+                + "ex) \"where line_number between ? and ?\" "
+                + "sqlId = [SELECT_ALL]");
+        sut.process();
+    }
+    
+    private static final String COMMIT_MSG = "transaction commit.";
+
+    /**
+     * SQL実行とコミットの回数を検証する。
+     * @param expectedMessages 「update count = [n]」と「transaction commit.」メッセージ
+     */
+    private void assertSqlExecutionAndCommitTimes(final String... expectedMessages) {
+
+        // 実際に出力された順番で、SQL実行とコミットのメッセージを抜き出します。
+        final List<String> actualMessages = new ArrayList<String>();
+        for (String message : OnMemoryLogWriter.getMessages("writer.sql")) {
+            if (message.contains("update count = ")
+                    || message.contains(COMMIT_MSG)) {
+                actualMessages.add(message);
+            }
+        }
+
+        // 実際に出力された順番のメッセージと、期待するメッセージをアサートします。
+        assertThat(actualMessages.size(), is(expectedMessages.length));
+        for (int i = 0; i < expectedMessages.length; i++) {
+            assertThat(actualMessages.get(i), is(containsString(expectedMessages[i])));
         }
     }
 

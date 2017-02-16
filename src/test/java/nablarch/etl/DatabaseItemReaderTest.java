@@ -17,9 +17,11 @@ import nablarch.core.db.connection.TransactionManagerConnection;
 import nablarch.core.db.statement.exception.SqlStatementException;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.etl.config.DbInputStepConfig;
+import nablarch.fw.batch.ee.progress.BasicProgressManager;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
+import nablarch.test.support.log.app.OnMemoryLogWriter;
 
 import org.junit.After;
 import org.junit.Before;
@@ -39,7 +41,7 @@ import mockit.Mocked;
 public class DatabaseItemReaderTest {
 
     /** テスト対象 */
-    DatabaseItemReader sut;
+    private DatabaseItemReader sut;
 
     @Rule
     public SystemRepositoryResource repositoryResource = new SystemRepositoryResource("db-default.xml");
@@ -60,7 +62,7 @@ public class DatabaseItemReaderTest {
 
     @Before
     public void setUp() throws Exception {
-        sut = new DatabaseItemReader();
+        OnMemoryLogWriter.clear();
 
         final ConnectionFactory connectionFactory = repositoryResource.getComponentByType(ConnectionFactory.class);
         final TransactionManagerConnection connection = connectionFactory.getConnection(
@@ -76,9 +78,11 @@ public class DatabaseItemReaderTest {
             mockJobContext.getJobName();
             result = "test-job";
         }};
-        Deencapsulation.setField(sut, "jobContext", mockJobContext);
-        Deencapsulation.setField(sut, "stepContext", mockStepContext);
-        Deencapsulation.setField(sut, "stepConfig", mockDbInputStepConfig);
+        sut = new DatabaseItemReader(
+                mockJobContext,
+                mockStepContext,
+                new BasicProgressManager(mockJobContext, mockStepContext),
+                mockDbInputStepConfig);
     }
 
     @After
@@ -152,6 +156,12 @@ public class DatabaseItemReaderTest {
         assertThat(resultEntity.getCol3(), is(10000));
 
         assertThat(sut.readItem(), is(nullValue()));
+
+        // assert log
+        final String logMessage = OnMemoryLogWriter.getMessages("writer.progress")
+                                                   .get(0);
+        assertThat(logMessage,
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [1]"));
     }
 
     /**
@@ -191,6 +201,12 @@ public class DatabaseItemReaderTest {
         assertThat(resultEntity1.getCol3(), is(30000));
 
         assertThat(sut.readItem(), is(nullValue()));
+        
+        // assert log
+        final String logMessage = OnMemoryLogWriter.getMessages("writer.progress")
+                                                   .get(0);
+        assertThat(logMessage,
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [3]"));
     }
 
     /**
@@ -218,6 +234,12 @@ public class DatabaseItemReaderTest {
         sut.open(null);
 
         assertThat(sut.readItem(), is(nullValue()));
+        
+        // assert log
+        final String logMessage = OnMemoryLogWriter.getMessages("writer.progress")
+                                                   .get(0);
+        assertThat(logMessage,
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [0]"));
     }
 
     /**

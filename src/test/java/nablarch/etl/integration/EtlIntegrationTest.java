@@ -1,9 +1,9 @@
 package nablarch.etl.integration;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assume.assumeThat;
-import static org.junit.matchers.JUnitMatchers.containsString;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -15,6 +15,9 @@ import javax.batch.operations.JobOperator;
 import javax.batch.runtime.BatchRuntime;
 import javax.batch.runtime.BatchStatus;
 import javax.batch.runtime.JobExecution;
+
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
 
 import nablarch.etl.integration.app.InputFile1Dto;
 import nablarch.etl.integration.app.InputFile2Dto;
@@ -112,8 +115,6 @@ public class EtlIntegrationTest {
         assertThat("エラーの1レコード登録される", errors.size(), is(1));
         assertThat("ユーザIDはa", errors.get(0).getUserId(), is("a"));
 
-        // assert log
-        OnMemoryLogWriter.assertLogContains("writer.memory", "-INFO- load progress. table name=[output_table1], write count=[2]");
     }
 
     /**
@@ -153,10 +154,6 @@ public class EtlIntegrationTest {
         assertThat("エラーレコード以外を結合した1レコードが格納される", output3.size(), is(1));
         assertThat("IDは1", output3.get(0).getUserId(), is("1"));
 
-        // assert log
-        String[] expected = { "-INFO- clean table. table name=[output_table3], delete count=[0]",
-                "-INFO- load progress. table name=[output_table3], write count=[1]" };
-        OnMemoryLogWriter.assertLogContains("writer.memory", expected);
     }
 
     /**
@@ -206,12 +203,6 @@ public class EtlIntegrationTest {
                 }}
         ));
 
-        // assert log
-        String[] expected = { "-INFO- clean table. table name=[output_table1], delete count=[0]",
-                "-INFO- load progress. table name=[output_table1], write count=[2]",
-                "-INFO- clean table. table name=[output_table2], delete count=[0]",
-                "-INFO- load progress. table name=[output_table2], write count=[2]" };
-        OnMemoryLogWriter.assertLogContains("writer.memory", expected);
     }
 
     /**
@@ -270,12 +261,6 @@ public class EtlIntegrationTest {
                 }}
         ));
 
-        // assert log
-        String[] expected = { "-INFO- chunk start. table name=[output_table1]",
-                "-INFO- chunk progress. write count=[3]",
-                "-INFO- chunk start. table name=[output_table2]",
-                "-INFO- chunk progress. write count=[2]" };
-        OnMemoryLogWriter.assertLogContains("writer.memory", expected);
     }
 
     /**
@@ -338,13 +323,6 @@ public class EtlIntegrationTest {
                     put("col3", "30000");
                 }}
         ));
-
-        // assert log
-        String[] expected = { "-INFO- clean table. table name=[output_table1], delete count=[0]",
-                "-INFO- load progress. table name=[output_table1], write count=[3]",
-                "-INFO- clean table. table name=[output_table2], delete count=[0]",
-                "-INFO- load progress. table name=[output_table2], write count=[2]" };
-        OnMemoryLogWriter.assertLogContains("writer.memory", expected);
     }
 
     private void assertOutputTable1(final List<HashMap<String, String>> expectedRowsOrderByUserId) {

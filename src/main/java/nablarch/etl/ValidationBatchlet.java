@@ -1,11 +1,27 @@
 package nablarch.etl;
 
+import static nablarch.etl.EtlUtil.verifyRequired;
+
+import java.text.MessageFormat;
+import java.util.Set;
+
+import javax.batch.api.AbstractBatchlet;
+import javax.batch.api.BatchProperty;
+import javax.batch.runtime.context.JobContext;
+import javax.batch.runtime.context.StepContext;
+import javax.enterprise.context.Dependent;
+import javax.inject.Inject;
+import javax.inject.Named;
+import javax.validation.ConstraintViolation;
+import javax.validation.Validator;
+
 import nablarch.common.dao.DeferredEntityList;
 import nablarch.common.dao.EntityUtil;
 import nablarch.common.dao.UniversalDao;
 import nablarch.core.beans.BeanUtil;
 import nablarch.core.db.connection.AppDbConnection;
 import nablarch.core.db.connection.DbConnectionContext;
+import nablarch.core.db.statement.ResultSetIterator;
 import nablarch.core.db.statement.SqlPStatement;
 import nablarch.core.log.Logger;
 import nablarch.core.log.LoggerManager;
@@ -15,19 +31,7 @@ import nablarch.etl.config.EtlConfig;
 import nablarch.etl.config.StepConfig;
 import nablarch.etl.config.ValidationStepConfig;
 import nablarch.etl.config.ValidationStepConfig.Mode;
-
-import javax.batch.api.AbstractBatchlet;
-import javax.batch.runtime.context.JobContext;
-import javax.batch.runtime.context.StepContext;
-import javax.enterprise.context.Dependent;
-import javax.inject.Inject;
-import javax.inject.Named;
-import javax.validation.ConstraintViolation;
-import javax.validation.Validator;
-import java.text.MessageFormat;
-import java.util.Set;
-
-import static nablarch.etl.EtlUtil.verifyRequired;
+import nablarch.fw.batch.ee.progress.ProgressManager;
 
 /**
  * 一時テーブルのデータをバリデーションする{@link javax.batch.api.Batchlet}実装クラス。
@@ -54,34 +58,58 @@ public class ValidationBatchlet extends AbstractBatchlet {
     private static final Logger LOGGER = LoggerManager.get("etl");
 
     /** {@link JobContext} */
-    @Inject
-    private JobContext jobContext;
+    private final JobContext jobContext;
 
     /** {@link StepContext} */
-    @Inject
-    private StepContext stepContext;
+    private final StepContext stepContext;
 
     /** ETLの設定 */
+    private final ValidationStepConfig stepConfig;
+
+    /** 進捗状況を管理するBean */
+    private final ProgressManager progressManager;
+    
+    /** 進捗ログを出す間隔 */
     @Inject
-    @EtlConfig
-    private StepConfig stepConfig;
+    @BatchProperty
+    String progressLogOutputInterval = "1000";
+
+    /**
+     * コンストラクタ。
+     * @param jobContext {@link JobContext}
+     * @param stepContext {@link StepContext}
+     * @param stepConfig ステップの設定
+     * @param progressManager 進捗状況を管理するBean
+     */
+    @Inject
+    public ValidationBatchlet(
+            final JobContext jobContext,
+            final StepContext stepContext,
+            @EtlConfig final StepConfig stepConfig,
+            final ProgressManager progressManager) {
+        this.jobContext = jobContext;
+        this.stepContext = stepContext;
+        this.stepConfig = (ValidationStepConfig) stepConfig;
+        this.progressManager = progressManager;
+    }
 
     @Override
     public String process() throws Exception {
 
-        final ValidationStepConfig config = (ValidationStepConfig) stepConfig;
+        verifyConfig(stepConfig);
 
-        verifyConfig(config);
-
-        final Class<?> inputTable = config.getBean();
-        final Class<?> errorTable = config.getErrorEntity();
+        final Class<?> inputTable = stepConfig.getBean();
+        final Class<?> errorTable = stepConfig.getErrorEntity();
 
         truncateErrorTable(errorTable);
 
         final ValidationResult validationResult = new ValidationResult();
         final Validator validator = ValidatorUtil.getValidator();
 
+        final long logInterval = getLogInterval();
+
         // 一時テーブルのデータを全て取得しValidationを行う。
+        progressManager.setInputCount(getRecordCountInInputTable());
         final DeferredEntityList<?> workItems = (DeferredEntityList<?>) UniversalDao.defer().findAll(inputTable);
 
         for (Object item : workItems) {
@@ -90,16 +118,24 @@ public class ValidationBatchlet extends AbstractBatchlet {
             final WorkItem workItem = (WorkItem) item;
             final Set<ConstraintViolation<WorkItem>> constraintViolations = validator.validate(workItem);
 
+            if (validationResult.getLineCount() % logInterval == 0L) {
+                progressManager.outputProgressInfo(validationResult.getLineCount());
+            }
+
             if (constraintViolations.isEmpty()) {
                 continue;
             }
 
             validationResult.addErrorCount(constraintViolations.size());
             onError(workItem, constraintViolations, errorTable);
-            if (isOverLimit(config, validationResult)) {
+            if (isOverLimit(stepConfig, validationResult)) {
                 throw new EtlJobAbortedException("number of validation errors has exceeded the maximum number of errors."
                         + " bean class=[" + inputTable.getName() + ']');
             }
+        }
+        
+        if (validationResult.getLineCount() % logInterval != 0L) {
+            progressManager.outputProgressInfo(validationResult.getLineCount());
         }
         workItems.close();
 
@@ -114,7 +150,7 @@ public class ValidationBatchlet extends AbstractBatchlet {
         // エラーテーブルに格納した情報などが破棄されてしまう。
         commit();
 
-        return buildResult(config.getMode(), inputTable, validationResult);
+        return buildResult(stepConfig.getMode(), inputTable, validationResult);
     }
 
     /**
@@ -128,6 +164,23 @@ public class ValidationBatchlet extends AbstractBatchlet {
                 "truncate table " + EntityUtil.getTableNameWithSchema(errorTable));
         statement.executeUpdate();
         commit();
+    }
+
+    /**
+     * 入力テーブルのレコード数を取得する。
+     * @return レコード数
+     */
+    private long getRecordCountInInputTable() {
+        final AppDbConnection connection = DbConnectionContext.getConnection();
+        final SqlPStatement statement = connection.prepareStatement(
+                "select count(*) from " + EntityUtil.getTableNameWithSchema(stepConfig.getBean()));
+        try {
+            final ResultSetIterator rows = statement.executeQuery();
+            rows.next();
+            return rows.getLong(1);
+        } finally {
+            statement.close();
+        }
     }
 
     /**
@@ -245,5 +298,17 @@ public class ValidationBatchlet extends AbstractBatchlet {
         TransactionContext.getTransaction().commit();
     }
 
+    /**
+     * 進捗ログの出力間隔を取得する。
+     * @return 進捗ログの出力間隔
+     */
+    private long getLogInterval() {
+        try {
+            return Long.parseLong(progressLogOutputInterval);
+        } catch (NumberFormatException e) {
+            LOGGER.logWarn("progress log output interval is not numeric. use the default value(1000)");
+            return 1000L;
+        }
+    }
 }
 

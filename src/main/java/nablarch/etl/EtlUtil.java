@@ -32,7 +32,7 @@ public final class EtlUtil {
      *
      * @param tableName テーブル名
      * @return カラム名リスト
-     * @throws {@link RuntimeException} データベース関連の例外が発生した場合
+     * @throws RuntimeException データベース関連の例外が発生した場合
      */
     public static List<String> getAllColumns(final String tableName) {
         final String convertedTableName = DatabaseUtil.convertIdentifiers(tableName);
@@ -57,7 +57,7 @@ public final class EtlUtil {
      *
      * @param rs {@link ResultSet}
      * @return カラム名のリスト
-     * @throws {@link SQLException} データベース関連の例外
+     * @throws SQLException データベース関連の例外
      */
     private static List<String> toColumnNameList(final ResultSet rs) throws SQLException {
         final Map<Integer, String> columnNames = new TreeMap<Integer, String>();
@@ -83,7 +83,7 @@ public final class EtlUtil {
     /**
      * 必須の設定項目を検証する。
      * <p/>
-     * 値がnullの場合は、{@link IllegalArgumentException}を送出する。
+     * 値がnullの場合は、{@link InvalidEtlConfigException}を送出する。
      * 
      * @param jobId ジョブID
      * @param stepId ステップID
@@ -105,23 +105,23 @@ public final class EtlUtil {
     /**
      * SQL文に範囲を指定する2つのINパラメータが含まれていることを検証する。
      * <p/>
-     * 含まれていない場合は、{@link IllegalArgumentException}を送出する。
+     * 含まれていない場合は、{@link InvalidEtlConfigException}を送出する。
      * @param config {@link DbToDbStepConfig}
-     * @throws {@link IllegalArgumentException} SQL文に2つのINパラメータが含まれていなかった場合
+     * @throws InvalidEtlConfigException SQL文に2つのINパラメータが含まれていなかった場合
      */
-    public static void verifySqlRangeParameter(final DbToDbStepConfig config) {
+    public static void verifySqlRangeParameter(final DbToDbStepConfig config) throws InvalidEtlConfigException {
         final String sql = config.getSql();
         if (StringUtil.isNullOrEmpty(sql)) {
             return;
         }
         final int count = sql.length() - sql.replace("?", "").length();
         if (count != 2) {
-            throw new IllegalArgumentException(
+            throw new InvalidEtlConfigException(
                     "sql is invalid. "
                             + "please include a range of data on the condition of the sql statement "
                             + "using the two input parameters. "
                             + "ex) \"where line_number between ? and ?\" "
-                            + "sqlId = [" + config.getSqlId() + "]");
+                            + "sqlId = [" + config.getSqlId() + ']');
         }
     }
 }

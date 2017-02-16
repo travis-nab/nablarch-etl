@@ -26,7 +26,7 @@ import java.lang.annotation.Target;
  */
 @Qualifier
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ ElementType.FIELD, ElementType.METHOD })
+@Target({ ElementType.FIELD, ElementType.METHOD , ElementType.PARAMETER})
 @Published(tag = "architect")
 public @interface EtlConfig {
     // nop

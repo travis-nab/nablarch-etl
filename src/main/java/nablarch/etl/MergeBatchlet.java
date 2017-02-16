@@ -1,17 +1,17 @@
 package nablarch.etl;
 
 import nablarch.common.dao.EntityUtil;
+import nablarch.common.dao.UniversalDao;
 import nablarch.core.db.connection.AppDbConnection;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.statement.SqlPStatement;
-import nablarch.core.log.Logger;
-import nablarch.core.log.LoggerManager;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.etl.config.DbToDbStepConfig;
 import nablarch.etl.config.DbToDbStepConfig.UpdateSize;
 import nablarch.etl.config.EtlConfig;
 import nablarch.etl.config.StepConfig;
 import nablarch.etl.generator.MergeSqlGenerator;
+import nablarch.fw.batch.ee.progress.ProgressManager;
 
 import javax.batch.api.AbstractBatchlet;
 import javax.batch.runtime.context.JobContext;
@@ -19,7 +19,6 @@ import javax.batch.runtime.context.StepContext;
 import javax.enterprise.context.Dependent;
 import javax.inject.Inject;
 import javax.inject.Named;
-import java.text.MessageFormat;
 
 /**
  * 入力リソース(SELECT文の結果)を出力テーブルにMERGEする{@link javax.batch.api.Batchlet}実装クラス。
@@ -30,25 +29,43 @@ import java.text.MessageFormat;
 @Dependent
 public class MergeBatchlet extends AbstractBatchlet {
 
-    /** ロガー */
-    private static final Logger LOGGER = LoggerManager.get("PROGRESS");
-
     /** {@link JobContext} */
-    @Inject
-    private JobContext jobContext;
+    private final JobContext jobContext;
 
     /** {@link StepContext} */
-    @Inject
-    private StepContext stepContext;
+    private final StepContext stepContext;
 
     /** ETLの設定 */
-    @EtlConfig
-    @Inject
-    private StepConfig stepConfig;
+    private final StepConfig stepConfig;
 
     /** 範囲更新のヘルパークラス */
+    private final RangeUpdateHelper rangeUpdateHelper;
+
+    /** 進捗状況を管理するBean */
+    private final ProgressManager progressManager;
+
+    /**
+     * コンストラクト。
+     * @param jobContext {@link JobContext}
+     * @param stepContext {@link StepContext}
+     * @param stepConfig ステップの設定
+     * @param rangeUpdateHelper 範囲更新のヘルパー
+     * @param progressManager 進捗状況を管理するBean
+     */
     @Inject
-    private RangeUpdateHelper rangeUpdateHelper;
+    public MergeBatchlet(
+            final JobContext jobContext,
+            final StepContext stepContext,
+            @EtlConfig final StepConfig stepConfig,
+            final RangeUpdateHelper rangeUpdateHelper,
+            final ProgressManager progressManager) {
+        this.jobContext = jobContext;
+        this.stepContext = stepContext;
+        this.stepConfig = stepConfig;
+        this.rangeUpdateHelper = rangeUpdateHelper;
+        this.progressManager = progressManager;
+    }
+
 
     /**
      * 一括でのMERGE処理を行う。
@@ -78,22 +95,22 @@ public class MergeBatchlet extends AbstractBatchlet {
         final String tableName = EntityUtil.getTableName(config.getBean());
 
         if (updateSize == null) {
-            int updateCount = statement.executeUpdate();
-            loggingProgress(tableName, updateCount);
+            progressManager.setInputCount(UniversalDao.countBySqlFile(config.getBean(), config.getSqlId()));
+            progressManager.outputProgressInfo(statement.executeUpdate());
         } else {
-
             EtlUtil.verifySqlRangeParameter(config);
             rangeUpdateHelper.verifyUpdateSize(updateSize);
 
             final Long maxSize = rangeUpdateHelper.getMaxLineNumber(config);
+            progressManager.setInputCount(maxSize);
+            
             final Range range = new Range(updateSize.getSize(), maxSize);
-            long totalMergeCount = 0;
             while (range.next()) {
                 statement.setLong(1, range.from);
                 statement.setLong(2, range.to);
-                totalMergeCount += statement.executeUpdate();
+                statement.executeUpdate();
                 commit();
-                loggingProgress(tableName, totalMergeCount);
+                progressManager.outputProgressInfo(range.to);
             }
         }
 
@@ -105,14 +122,5 @@ public class MergeBatchlet extends AbstractBatchlet {
      */
     private static void commit() {
         TransactionContext.getTransaction().commit();
-    }
-
-    /**
-     * 進捗ログを出力する。
-     * @param tableName マージ先テーブル名
-     * @param mergeCount マージした件数
-     */
-    private static void loggingProgress(String tableName, long mergeCount) {
-        LOGGER.logInfo(MessageFormat.format("load progress. table name=[{0}], merge count=[{1}]", tableName, mergeCount));
     }
 }

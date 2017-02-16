@@ -16,17 +16,18 @@ import javax.batch.runtime.context.StepContext;
 import nablarch.common.databind.csv.Csv;
 import nablarch.core.repository.SystemRepository;
 import nablarch.etl.config.FileToDbStepConfig;
+import nablarch.fw.batch.ee.progress.BasicProgressManager;
 import nablarch.test.support.log.app.OnMemoryLogWriter;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
-import mockit.Deencapsulation;
-import mockit.Expectations;
 import mockit.Mocked;
+import mockit.NonStrictExpectations;
 
 /**
  * {@link FileItemReader}のテストクラス。
@@ -34,10 +35,10 @@ import mockit.Mocked;
 public class FileItemReaderTest {
 
     @Rule
-    public TemporaryFolder tempDir = new TemporaryFolder();
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    /** テストクラス */
-    FileItemReader sut = new FileItemReader();
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     @Mocked
     private JobContext mockJobContext;
@@ -45,22 +46,17 @@ public class FileItemReaderTest {
     @Mocked
     private StepContext mockStepContext;
 
-    @Mocked
-    private FileToDbStepConfig mockFileToDbStepConfig;
-
     @Before
     public void setUp() {
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
+        new NonStrictExpectations() {{
             mockStepContext.getStepName();
             result = "test-step";
             mockJobContext.getJobName();
             result = "test-job";
         }};
-        Deencapsulation.setField(sut, "jobContext", mockJobContext);
-        Deencapsulation.setField(sut, "stepContext", mockStepContext);
-        Deencapsulation.setField(sut, "stepConfig", mockFileToDbStepConfig);
+
         OnMemoryLogWriter.clear();
     }
 
@@ -73,40 +69,36 @@ public class FileItemReaderTest {
      * 必須項目が指定されなかった場合、例外が送出されること。
      */
     @Test
-    public void testRequired() throws Exception {
+    public void beanSetNull_shouldThrowException() throws Exception {
 
-        final File file = tempDir.newFile();
+        final FileItemReader sut = new FileItemReader(
+                mockJobContext,
+                mockStepContext,
+                new FileToDbStepConfig(),
+                temporaryFolder.getRoot(),
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
-        // bean
-
-        new Expectations() {{
-            mockFileToDbStepConfig.getBean();
-            result = null;
-        }};
-
-        try {
-            sut.open(null);
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("bean is required. jobId = [test-job], stepId = [test-step]"));
-        }
-
-        // fileName
-
-        new Expectations() {{
-            mockFileToDbStepConfig.getBean();
-            result = CsvFile.class;
-            mockFileToDbStepConfig.getFileName();
-            result = null;
-        }};
-
-        try {
-            sut.open(null);
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("fileName is required. jobId = [test-job], stepId = [test-step]"));
-        }
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("bean is required. jobId = [test-job], stepId = [test-step]");
+        sut.open(null);
     }
+
+    @Test
+    public void fileNameSetNull_shouldThrowException() throws Exception {
+        final FileToDbStepConfig stepConfig = new FileToDbStepConfig();
+        stepConfig.setBean(CsvFile.class);
+        final FileItemReader sut = new FileItemReader(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                temporaryFolder.getRoot(),
+                new BasicProgressManager(mockJobContext, mockStepContext));
+
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("fileName is required. jobId = [test-job], stepId = [test-step]");
+        sut.open(null);
+    }
+
 
     /**
      * ファイルが読み込めることを検証する。
@@ -116,9 +108,7 @@ public class FileItemReaderTest {
     public void readFile() throws Exception {
 
         // -------------------------------------------------- setup file
-        final File inputFileBasePath = tempDir.newFolder();
-        final File file = new File(inputFileBasePath, "dummy");
-        Deencapsulation.setField(sut, "inputFileBasePath", inputFileBasePath);
+        final File file = new File(temporaryFolder.getRoot(), "dummy");
         final BufferedWriter br = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "utf-8"));
         br.write("1,なまえ1\r\n");
         br.write("2,なまえ2\r\n");
@@ -127,14 +117,22 @@ public class FileItemReaderTest {
         br.close();
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockFileToDbStepConfig.getBean();
-            result = CsvFile.class;
-            mockFileToDbStepConfig.getFileName();
-            result = "dummy";
-        }};
+        final FileToDbStepConfig stepConfig = new FileToDbStepConfig();
+        stepConfig.setBean(CsvFile.class);
+        stepConfig.setFileName("dummy");
 
+        final FileItemReader sut = new FileItemReader(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                temporaryFolder.getRoot(),
+                new BasicProgressManager(mockJobContext, mockStepContext));
         sut.open(null);
+
+        final String inputCountLog = OnMemoryLogWriter.getMessages("writer.progress")
+                                                      .get(0);
+        assertThat(inputCountLog, containsString(
+                "-INFO- job name: [test-job] step name: [test-step] input count: [3]"));
 
         _1行目:
         {
@@ -165,27 +163,32 @@ public class FileItemReaderTest {
      * <p/>
      * close -> readの順に呼び出し、ファイルが閉じられている例外が発生することで確認する。
      */
-    @Test(expected = RuntimeException.class)
+    @Test
     public void close() throws Exception {
         // -------------------------------------------------- setup file
-        final File inputFileBasePath = tempDir.newFolder();
-        final File file = new File(inputFileBasePath, "dummy");
-        Deencapsulation.setField(sut, "inputFileBasePath", inputFileBasePath);
+        final File file = new File(temporaryFolder.getRoot(), "dummy");
         final BufferedWriter br = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "utf-8"));
         br.write("1,なまえ1\r\n");
         br.close();
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockFileToDbStepConfig.getBean();
-            result = CsvFile.class;
-            mockFileToDbStepConfig.getFileName();
-            result = "dummy";
-        }};
+        final FileToDbStepConfig stepConfig = new FileToDbStepConfig();
+        stepConfig.setBean(CsvFile.class);
+        stepConfig.setFileName("dummy");
+
+        final FileItemReader sut = new FileItemReader(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                temporaryFolder.getRoot(),
+                new BasicProgressManager(mockJobContext, mockStepContext));
+
+        sut.open(null);
 
         sut.open(null);
         sut.close();
 
+        expectedException.expect(RuntimeException.class);
         sut.readItem();
     }
 
@@ -195,17 +198,18 @@ public class FileItemReaderTest {
     @Test
     public void inputFileNotFound() throws Exception {
 
-        final File inputFileBasePath = new File("notfound");
-        Deencapsulation.setField(sut, "inputFileBasePath", inputFileBasePath);
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockFileToDbStepConfig.getBean();
-            result = CsvFile.class;
-            mockFileToDbStepConfig.getFileName();
-            result = "dummy";
-        }};
-        
-        final String inputFilePath = new File(inputFileBasePath, "dummy").getAbsolutePath();
+        final FileToDbStepConfig stepConfig = new FileToDbStepConfig();
+        stepConfig.setBean(CsvFile.class);
+        stepConfig.setFileName("dummy");
+
+        final File inputFileBasePath = temporaryFolder.newFolder();
+        final FileItemReader sut = new FileItemReader(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                inputFileBasePath,
+                new BasicProgressManager(mockJobContext, mockStepContext));
 
         try {
             sut.open(null);
@@ -213,9 +217,11 @@ public class FileItemReaderTest {
         } catch (BatchRuntimeException e) {
             final String log = OnMemoryLogWriter.getMessages("writer.memory")
                                                 .get(0);
+
+            final String inputFilePath = new File(inputFileBasePath, "dummy").getAbsolutePath();
             final String message = "入力ファイルが存在しません。外部からファイルを受信できているか、"
                     + "ディレクトリやファイルの権限は正しいかを確認してください。入力ファイル=[" + inputFilePath + ']';
-            
+
             assertThat(log, containsString("-ERROR- " + message));
             assertThat(e.getMessage(), is(message));
         }
