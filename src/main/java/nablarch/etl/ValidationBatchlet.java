@@ -25,6 +25,10 @@ import nablarch.core.db.statement.ResultSetIterator;
 import nablarch.core.db.statement.SqlPStatement;
 import nablarch.core.log.Logger;
 import nablarch.core.log.LoggerManager;
+import nablarch.core.log.basic.LogLevel;
+import nablarch.core.log.operation.OperationLogger;
+import nablarch.core.message.MessageLevel;
+import nablarch.core.message.MessageUtil;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.core.validation.ee.ValidatorUtil;
 import nablarch.etl.config.EtlConfig;
@@ -96,7 +100,7 @@ public class ValidationBatchlet extends AbstractBatchlet {
     @Override
     public String process() throws Exception {
 
-        verifyConfig(stepConfig);
+        verifyConfig();
 
         final Class<?> inputTable = stepConfig.getBean();
         final Class<?> errorTable = stepConfig.getErrorEntity();
@@ -150,7 +154,7 @@ public class ValidationBatchlet extends AbstractBatchlet {
         // エラーテーブルに格納した情報などが破棄されてしまう。
         commit();
 
-        return buildResult(stepConfig.getMode(), inputTable, validationResult);
+        return buildResult(validationResult);
     }
 
     /**
@@ -210,9 +214,8 @@ public class ValidationBatchlet extends AbstractBatchlet {
     /**
      * 設定値の検証を行う。
      *
-     * @param stepConfig 設定値
      */
-    private void verifyConfig(final ValidationStepConfig stepConfig) {
+    private void verifyConfig() {
         final String jobName = jobContext.getJobName();
         final String stepName = stepContext.getStepName();
 
@@ -224,21 +227,21 @@ public class ValidationBatchlet extends AbstractBatchlet {
     /**
      * 結果を構築する。
      *
-     * @param mode モード
-     * @param inputTableEntity 入力Entityクラス
      * @param validationResult バリデーション結果
      * @return 終了ステータス
      */
-    private static String buildResult(
-            final Mode mode, final Class<?> inputTableEntity, final ValidationResult validationResult) {
+    private String buildResult(final ValidationResult validationResult) {
 
         if (validationResult.hasError()) {
-            if (mode == Mode.CONTINUE) {
-                return "VALIDATION_ERROR";
+            OperationLogger.write(LogLevel.ERROR,
+                    MessageUtil.createMessage(MessageLevel.ERROR, "nablarch.etl.validation-error").formatMessage());
+            if (stepConfig.getMode() == Mode.CONTINUE) {
+                jobContext.setExitStatus("WARNING");
+                return "WARNING";
             } else {
                 throw new EtlJobAbortedException(
                         "abort the JOB because there was a validation error."
-                                + " bean class=[" + inputTableEntity.getName() + "],"
+                                + " bean class=[" + stepConfig.getBean().getName() + "],"
                                 + " error count=[" + validationResult.getErrorCount() + ']');
             }
         } else {

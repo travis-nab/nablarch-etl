@@ -215,7 +215,7 @@ public class FileItemReaderTest {
             sut.open(null);
             fail();
         } catch (BatchRuntimeException e) {
-            final String log = OnMemoryLogWriter.getMessages("writer.memory")
+            final String log = OnMemoryLogWriter.getMessages("writer.operator")
                                                 .get(0);
 
             final String inputFilePath = new File(inputFileBasePath, "dummy").getAbsolutePath();
