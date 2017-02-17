@@ -41,32 +41,48 @@ public class SqlLoaderBatchlet extends AbstractBatchlet {
     private static final String DATABASE_NAME_KEY = "db.databaseName";
 
     /** {@link JobContext} */
-    @Inject
-    private JobContext jobContext;
+    private final JobContext jobContext;
 
     /** {@link StepContext} */
-    @Inject
-    private StepContext stepContext;
+    private final StepContext stepContext;
 
     /** ETLの設定 */
-    @EtlConfig
-    @Inject
-    private StepConfig stepConfig;
+    private final FileToDbStepConfig stepConfig;
 
     /** 入力ファイルのベースパス */
-    @PathConfig(BasePath.INPUT)
-    @Inject
-    private File inputFileBasePath;
+    private final File inputFileBasePath;
 
     /** SQLLoaderに使用するコントロールファイルのベースパス */
-    @PathConfig(BasePath.SQLLOADER_CONTROL)
-    @Inject
-    private File sqlLoaderControlFileBasePath;
+    private final File sqlLoaderControlFileBasePath;
 
     /** SQLLoaderが出力するファイルのベースパス */
-    @PathConfig(BasePath.SQLLOADER_OUTPUT)
+    private final File sqlLoaderOutputFileBasePath;
+
+    /**
+     * コンストラクタ。
+     * @param jobContext JobContex
+     * @param stepContext StepContext
+     * @param stepConfig ステップの設定
+     * @param inputFileBasePath 入力ファイルのあるディレクトリ
+     * @param sqlLoaderControlFileBasePath SQL*Loaderのコントロールファイルが置かれたディレクトリ
+     * @param sqlLoaderOutputFileBasePath SQL*Loaderが出力するファイルを置くディレクトリ
+     */
     @Inject
-    private File sqlLoaderOutputFileBasePath;
+    public SqlLoaderBatchlet(
+            final JobContext jobContext,
+            final StepContext stepContext,
+            @EtlConfig final StepConfig stepConfig,
+            @PathConfig(BasePath.INPUT) final File inputFileBasePath,
+            @PathConfig(BasePath.SQLLOADER_CONTROL) final File sqlLoaderControlFileBasePath,
+            @PathConfig(BasePath.SQLLOADER_OUTPUT) final File sqlLoaderOutputFileBasePath) {
+        this.jobContext = jobContext;
+        this.stepContext = stepContext;
+        this.stepConfig = (FileToDbStepConfig) stepConfig;
+        this.inputFileBasePath = inputFileBasePath;
+        this.sqlLoaderControlFileBasePath = sqlLoaderControlFileBasePath;
+        this.sqlLoaderOutputFileBasePath = sqlLoaderOutputFileBasePath;
+    }
+
 
     /**
      * SQL*Loaderを実行してCSVファイルのデータをワークテーブルに一括登録する。
@@ -84,14 +100,12 @@ public class SqlLoaderBatchlet extends AbstractBatchlet {
         final String jobId = jobContext.getJobName();
         final String stepId = stepContext.getStepName();
 
-        final FileToDbStepConfig config = (FileToDbStepConfig) stepConfig;
+        EtlUtil.verifyRequired(jobId, stepId, "fileName", stepConfig.getFileName());
+        EtlUtil.verifyRequired(jobId, stepId, "bean", stepConfig.getBean());
 
-        EtlUtil.verifyRequired(jobId, stepId, "fileName", config.getFileName());
-        EtlUtil.verifyRequired(jobId, stepId, "bean", config.getBean());
-
-        final String ctlFileName = config.getBean().getSimpleName();
+        final String ctlFileName = stepConfig.getBean().getSimpleName();
         final String ctlFile = new File(sqlLoaderControlFileBasePath, ctlFileName + ".ctl").getPath();
-        final File dataFile = new File(inputFileBasePath, config.getFileName());
+        final File dataFile = new File(inputFileBasePath, stepConfig.getFileName());
         final String badFile = new File(sqlLoaderOutputFileBasePath, ctlFileName + ".bad").getPath();
         final String logFile = new File(sqlLoaderOutputFileBasePath, ctlFileName + ".log").getPath();
 

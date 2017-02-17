@@ -43,7 +43,7 @@ class ValidationResult {
      * 行数を取得する。
      * @return 行数
      */
-    public long getLineCount() {
+    long getLineCount() {
         return lineCount;
     }
 
