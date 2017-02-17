@@ -36,29 +36,43 @@ import nablarch.etl.config.StepConfig;
 public class FileItemWriter extends AbstractItemWriter {
 
     /** {@link JobContext} */
-    @Inject
-    private JobContext jobContext;
+    private final JobContext jobContext;
 
     /** {@link StepContext} */
-    @Inject
-    private StepContext stepContext;
+    private final StepContext stepContext;
 
     /** ETLの設定 */
-    @EtlConfig
-    @Inject
-    private StepConfig stepConfig;
+    private final StepConfig stepConfig;
 
     /** 出力ファイルのベースパス */
-    @PathConfig(BasePath.OUTPUT)
-    @Inject
-    private File outputFileBasePath;
+    private final File outputFileBasePath;
 
     /** Javaオブジェクトからデータに変換を行うマッパー */
-    ObjectMapper<Object> mapper;
+    private ObjectMapper<Object> mapper;
+
+    /**
+     * コンストラクタ。
+     * @param jobContext {@link JobContext}
+     * @param stepContext {@link StepContext}
+     * @param stepConfig ステップの設定
+     * @param outputFileBasePath 出力先ディレクトリ
+     */
+    @Inject
+    public FileItemWriter(
+            final JobContext jobContext,
+            final StepContext stepContext,
+            @EtlConfig final StepConfig stepConfig,
+            @PathConfig(BasePath.OUTPUT) final File outputFileBasePath) {
+        this.jobContext = jobContext;
+        this.stepContext = stepContext;
+        this.stepConfig = stepConfig;
+        this.outputFileBasePath = outputFileBasePath;
+    }
+
 
     @SuppressWarnings("unchecked")
     @Override
-    public void open(Serializable checkpoint) throws Exception {
+    public void open(final Serializable checkpoint) throws Exception {
 
         final String jobId = jobContext.getJobName();
         final String stepId = stepContext.getStepName();
@@ -84,7 +98,7 @@ public class FileItemWriter extends AbstractItemWriter {
     }
 
     @Override
-    public void writeItems(List<Object> items) throws IOException {
+    public void writeItems(final List<Object> items) throws IOException {
         for (Object item : items) {
             mapper.write(item);
         }

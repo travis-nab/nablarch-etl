@@ -1,6 +1,7 @@
 package nablarch.etl;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -9,6 +10,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.Reader;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import javax.batch.operations.BatchRuntimeException;
@@ -24,10 +26,10 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
 import mockit.Deencapsulation;
-import mockit.Expectations;
 import mockit.Mocked;
 import mockit.NonStrictExpectations;
 
@@ -36,11 +38,11 @@ import mockit.NonStrictExpectations;
  */
 public class FileItemWriterTest {
 
-    /** テスト対象 */
-    FileItemWriter sut;
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Rule
-    public TemporaryFolder folder = new TemporaryFolder();
+    public ExpectedException expectedException = ExpectedException.none();
 
     @Mocked
     private JobContext mockJobContext;
@@ -48,14 +50,9 @@ public class FileItemWriterTest {
     @Mocked
     private StepContext mockStepContext;
 
-    @Mocked
-    private DbToFileStepConfig mockDbToFileStepConfig;
-
     @Before
     public void setUp() {
         OnMemoryLogWriter.clear();
-
-        sut = new FileItemWriter();
 
         // -------------------------------------------------- setup objects that is injected
         new NonStrictExpectations() {{
@@ -64,9 +61,6 @@ public class FileItemWriterTest {
             mockJobContext.getJobName();
             result = "test-job";
         }};
-        Deencapsulation.setField(sut, "jobContext", mockJobContext);
-        Deencapsulation.setField(sut, "stepContext", mockStepContext);
-        Deencapsulation.setField(sut, "stepConfig", mockDbToFileStepConfig);
     }
 
     @After
@@ -74,73 +68,62 @@ public class FileItemWriterTest {
         SystemRepository.clear();
     }
 
-    /**
-     * 必須項目が指定されなかった場合、例外が送出されること。
-     */
     @Test
-    public void testRequired() throws Exception {
+    public void beanIsNull_shouldThrowException() throws Exception {
 
-        // bean
+        final DbToFileStepConfig stepConfig = new DbToFileStepConfig();
+        stepConfig.setBean(null);
+        final FileItemWriter sut = new FileItemWriter(mockJobContext, mockStepContext, stepConfig,
+                temporaryFolder.getRoot());
 
-        new Expectations() {{
-            mockDbToFileStepConfig.getBean();
-            result = null;
-        }};
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("bean is required. jobId = [test-job], stepId = [test-step]");
+        sut.open(null);
 
-        try {
-            sut.open(null);
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("bean is required. jobId = [test-job], stepId = [test-step]"));
-        }
+    }
 
-        // fileName
+    @Test
+    public void fileNameIsNull_shouldThrowException() throws Exception {
+        final DbToFileStepConfig stepConfig = new DbToFileStepConfig();
+        stepConfig.setBean(EtlFileItemWriterBean.class);
+        stepConfig.setFileName(null);
+        final FileItemWriter sut = new FileItemWriter(mockJobContext, mockStepContext, stepConfig,
+                temporaryFolder.getRoot());
 
-        new Expectations() {{
-            mockDbToFileStepConfig.getBean();
-            result = EtlFileItemWriterBean.class;
-            mockDbToFileStepConfig.getFileName();
-            result = null;
-        }};
-
-        try {
-            sut.open(null);
-            fail();
-        } catch (InvalidEtlConfigException e) {
-            assertThat(e.getMessage(), is("fileName is required. jobId = [test-job], stepId = [test-step]"));
-        }
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("fileName is required. jobId = [test-job], stepId = [test-step]");
+        sut.open(null);
     }
 
     /**
-     * 対象レコードが1件の場合に読み込めること
+     * 対象レコードが1件の場合に出力できること
      */
     @Test
     public void testWriteSingleRecord() throws Exception {
 
-        final File outputFileBasePath = folder.newFolder();
+        final File outputFileBasePath = temporaryFolder.newFolder();
         final File output = new File(outputFileBasePath, "dummy");
-        Deencapsulation.setField(sut, "outputFileBasePath", outputFileBasePath);
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToFileStepConfig.getBean();
-            result = EtlFileItemWriterBean.class;
-            mockDbToFileStepConfig.getFileName();
-            result = "dummy";
-        }};
+        final DbToFileStepConfig stepConfig = new DbToFileStepConfig();
+        stepConfig.setBean(EtlFileItemWriterBean.class);
+        stepConfig.setFileName("dummy");
 
-        List<Object> dbData = Arrays.<Object>asList(
-                  EtlFileItemWriterBean.create("10001", 10000)
+        final FileItemWriter sut = new FileItemWriter(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                outputFileBasePath
         );
+
+        List<Object> dbData = Collections.<Object>singletonList(EtlFileItemWriterBean.create("10001", 10000));
 
         sut.open(null);
         sut.writeItems(dbData);
         sut.close();
 
         assertThat("データ（1件）がファイル出力されること",
-                readFile(new BufferedReader(new FileReader(output))),
-                is("FIELD-NAME1,FIELD-NAME2\r\n"
-                        + "10001,10000\r\n"));
+                readFile(output), is("FIELD-NAME1,FIELD-NAME2\r\n10001,10000\r\n"));
     }
 
     /**
@@ -149,22 +132,26 @@ public class FileItemWriterTest {
     @Test
     public void testWriteMultiRecords() throws Exception {
 
-        final File outputFileBasePath = folder.newFolder();
+        final File outputFileBasePath = temporaryFolder.newFolder();
         final File output = new File(outputFileBasePath, "dummy");
-        Deencapsulation.setField(sut, "outputFileBasePath", outputFileBasePath);
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToFileStepConfig.getBean();
-            result = EtlFileItemWriterBean.class;
-            mockDbToFileStepConfig.getFileName();
-            result = "dummy";
-        }};
+        final DbToFileStepConfig stepConfig = new DbToFileStepConfig();
+        stepConfig.setBean(EtlFileItemWriterBean.class);
+        stepConfig.setFileName("dummy");
+
+        final FileItemWriter sut = new FileItemWriter(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                outputFileBasePath
+        );
+
 
         List<Object> dbData = Arrays.<Object>asList(
-                  EtlFileItemWriterBean.create("10001", 10000)
-                , EtlFileItemWriterBean.create("10002", 20000)
-                , EtlFileItemWriterBean.create("10003", 30000)
+                EtlFileItemWriterBean.create("10001", 10000),
+                EtlFileItemWriterBean.create("10002", 20000),
+                EtlFileItemWriterBean.create("10003", 30000)
         );
 
         sut.open(null);
@@ -172,7 +159,7 @@ public class FileItemWriterTest {
         sut.close();
 
         assertThat("データ（複数件）がファイル出力されること",
-                readFile(new BufferedReader(new FileReader(output))),
+                readFile(output),
                 is("FIELD-NAME1,FIELD-NAME2\r\n"
                         + "10001,10000\r\n"
                         + "10002,20000\r\n"
@@ -184,28 +171,29 @@ public class FileItemWriterTest {
      * <p/>
      * close -> writeの順に呼び出し、ファイルが閉じられている例外が発生することで確認する。
      */
-    @Test(expected = RuntimeException.class)
+    @Test
     public void testClose() throws Exception {
 
-        final File outputFileBasePath = folder.newFolder();
-        Deencapsulation.setField(sut, "outputFileBasePath", outputFileBasePath);
+        final File outputFileBasePath = temporaryFolder.newFolder();
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToFileStepConfig.getBean();
-            result = EtlFileItemWriterBean.class;
-            mockDbToFileStepConfig.getFileName();
-            result = "dummy";
-        }};
+        final DbToFileStepConfig stepConfig = new DbToFileStepConfig();
+        stepConfig.setBean(EtlFileItemWriterBean.class);
+        stepConfig.setFileName("dummy");
 
-        List<Object> dbData = Arrays.<Object>asList(
-                EtlFileItemWriterBean.create("10001", 10000)
+        final FileItemWriter sut = new FileItemWriter(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                outputFileBasePath
         );
+        Deencapsulation.setField(sut, "outputFileBasePath", outputFileBasePath);
 
         sut.open(null);
         sut.close();
 
-        sut.writeItems(dbData);
+        expectedException.expect(RuntimeException.class);
+        sut.writeItems(Collections.<Object>singletonList(EtlFileItemWriterBean.create("10001", 10000)));
     }
 
     /**
@@ -213,13 +201,10 @@ public class FileItemWriterTest {
      */
     @Test
     public void testNotNeedToClose() throws Exception {
-        // クローズ対象のmapperをつくるopen処理は呼ばない
-
-        try{
-            sut.close();
-        }catch(NullPointerException e){
-            fail("例外は発生しないのでここにはこない");
-        }
+        final FileItemWriter sut = new FileItemWriter(
+                mockJobContext, mockStepContext, new DbToFileStepConfig(), temporaryFolder.getRoot());
+        // ここで例外は発生しないはずなのでアサートは特にしない。
+        sut.close();
     }
 
     /**
@@ -227,18 +212,16 @@ public class FileItemWriterTest {
      */
     @Test
     public void testOutputFileCanNotWrite() throws Exception {
-        final File outputFileBasePath = folder.newFolder();
+        final File outputFileBasePath = temporaryFolder.newFolder();
         final File output = new File(outputFileBasePath, "dummy");
         output.createNewFile();
-        Deencapsulation.setField(sut, "outputFileBasePath", outputFileBasePath);
 
         // -------------------------------------------------- setup objects that is injected
-        new Expectations() {{
-            mockDbToFileStepConfig.getBean();
-            result = EtlFileItemWriterBean.class;
-            mockDbToFileStepConfig.getFileName();
-            result = "dummy";
-        }};
+        final DbToFileStepConfig stepConfig = new DbToFileStepConfig();
+        stepConfig.setBean(EtlFileItemWriterBean.class);
+        stepConfig.setFileName("dummy");
+        final FileItemWriter sut = new FileItemWriter(
+                mockJobContext, mockStepContext, stepConfig, outputFileBasePath);
 
         // ファイルを読み取り専用にする
         output.setReadOnly();
@@ -258,12 +241,13 @@ public class FileItemWriterTest {
     /**
      * テストで出力されたファイルを読み込む。
      *
-     * @param reader リソース
+     * @param file file
      * @return 読み込んだ結果
      */
-    private String readFile(Reader reader) throws Exception {
+    private String readFile(File file) throws Exception {
         StringBuilder sb = new StringBuilder();
         int read;
+        final BufferedReader reader = new BufferedReader(new FileReader(file));
         while ((read = reader.read()) != -1) {
             sb.append((char) read);
         }

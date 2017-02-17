@@ -8,6 +8,7 @@ import nablarch.etl.config.DbToDbStepConfig;
 import nablarch.etl.config.EtlConfig;
 import nablarch.etl.config.FileToDbStepConfig;
 import nablarch.etl.config.StepConfig;
+import nablarch.fw.batch.progress.ProgressLogger;
 
 import javax.batch.api.chunk.AbstractItemWriter;
 import javax.batch.runtime.context.JobContext;
@@ -31,24 +32,34 @@ import java.util.List;
 @Dependent
 public class DatabaseItemWriter extends AbstractItemWriter {
 
-    /** ロガー */
-    private static final Logger LOGGER = LoggerManager.get("PROGRESS");
-
     /** {@link JobContext} */
-    @Inject
-    private JobContext jobContext;
+    private final JobContext jobContext;
 
     /** {@link StepContext} */
-    @Inject
-    private StepContext stepContext;
+    private final StepContext stepContext;
 
     /** ETLの設定 */
-    @EtlConfig
+    private final StepConfig stepConfig;
+
+    /**
+     * コンストラクタ。
+     *
+     * @param jobContext {@link JobContext}
+     * @param stepContext {@link StepContext}
+     * @param stepConfig ステップの設定
+     */
     @Inject
-    private StepConfig stepConfig;
+    public DatabaseItemWriter(
+            final JobContext jobContext,
+            final StepContext stepContext,
+            @EtlConfig final StepConfig stepConfig) {
+        this.jobContext = jobContext;
+        this.stepContext = stepContext;
+        this.stepConfig = stepConfig;
+    }
 
     @Override
-    public void open(Serializable checkpoint) throws Exception {
+    public void open(final Serializable checkpoint) throws Exception {
         if (stepConfig instanceof DbToDbStepConfig) {
             loggingStartChunk(EntityUtil.getTableName(((DbToDbStepConfig)stepConfig).getBean()));
         } else if (stepConfig instanceof FileToDbStepConfig) {
@@ -57,15 +68,16 @@ public class DatabaseItemWriter extends AbstractItemWriter {
     }
 
     @Override
-    public void writeItems(final List<Object> list) throws Exception {
-        UniversalDao.batchInsert(list);
+    public void writeItems(final List<Object> items) throws Exception {
+        UniversalDao.batchInsert(items);
     }
 
     /**
      * 進捗ログを出力する。
      * @param tableName 登録先テーブル名
      */
-    private static void loggingStartChunk(String tableName) {
-        LOGGER.logInfo(MessageFormat.format("chunk start. table name=[{0}]", tableName));
+    private void loggingStartChunk(final String tableName) {
+        ProgressLogger.write(MessageFormat.format("job name: [{0}] step name: [{1}] write table name: [{2}]",
+                jobContext.getJobName(), stepContext.getStepName(), tableName));
     }
 }

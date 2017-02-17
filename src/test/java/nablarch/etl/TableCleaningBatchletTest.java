@@ -42,15 +42,6 @@ public class TableCleaningBatchletTest {
     @ClassRule
     public static SystemRepositoryResource resource = new SystemRepositoryResource("db-default.xml");
 
-    @Rule
-    public TestName testName = new TestName();
-
-    /** テスト対象 */
-    TableCleaningBatchlet sut = new TableCleaningBatchlet();
-
-    @Mocked
-    StepContext mockStepContext;
-
     @BeforeClass
     public static void setUpClass() throws Exception {
         VariousDbTestHelper.createTable(TableCleaningBatchletEntity.class);
@@ -63,9 +54,6 @@ public class TableCleaningBatchletTest {
         final TransactionManagerConnection connection = connectionFactory.getConnection(
                 TransactionContext.DEFAULT_TRANSACTION_CONTEXT_KEY);
         DbConnectionContext.setConnection(connection);
-
-        Deencapsulation.setField(sut, mockStepContext);
-
         OnMemoryLogWriter.clear();
     }
 
@@ -93,10 +81,9 @@ public class TableCleaningBatchletTest {
                 new TableCleaningBatchletEntity2(1L, "name2")
         );
 
-        // -------------------------------------------------- setup root config
         final TruncateStepConfig truncateStepConfig = new TruncateStepConfig();
         truncateStepConfig.setEntities(Collections.<Class<?>>singletonList(TableCleaningBatchletEntity.class));
-        Deencapsulation.setField(sut, "stepConfig", truncateStepConfig);
+        final TableCleaningBatchlet sut = new TableCleaningBatchlet(truncateStepConfig);
 
         // -------------------------------------------------- execute
         sut.process();
@@ -132,7 +119,7 @@ public class TableCleaningBatchletTest {
         // -------------------------------------------------- setup root config
         final TruncateStepConfig truncateStepConfig = new TruncateStepConfig();
         truncateStepConfig.setEntities(Arrays.asList(TableCleaningBatchletEntity.class, TableCleaningBatchletEntity2.class));
-        Deencapsulation.setField(sut, "stepConfig", truncateStepConfig);
+        final TableCleaningBatchlet sut = new TableCleaningBatchlet(truncateStepConfig);
 
         // -------------------------------------------------- execute
         sut.process();
