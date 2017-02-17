@@ -44,6 +44,7 @@ import org.junit.runner.RunWith;
 
 import mockit.Expectations;
 import mockit.Mocked;
+import mockit.Verifications;
 
 /**
  * {@link ValidationBatchlet}のテスト。
@@ -213,7 +214,10 @@ public class ValidationBatchletTest {
         );
 
         // -------------------------------------------------- execute
-        assertThat("エラーありなのでVALIDATION_ERROR", sut.process(), is("VALIDATION_ERROR"));
+        assertThat("エラーありなので警告あり終了", sut.process(), is("WARNING"));
+        new Verifications() {{
+            mockJobContext.setExitStatus("WARNING");
+        }};
 
         // -------------------------------------------------- assert table
         final List<ValidationBatchletErrorEntity> errors = VariousDbTestHelper.findAll(
@@ -273,6 +277,11 @@ public class ValidationBatchletTest {
                 containsString("job name: [validation_singleError_job] step name: [validation_singleError_step] input count: [3]"),
                 containsString("remaining count: [0]")
         ));
+
+        final List<String> operator = OnMemoryLogWriter.getMessages("writer.operator");
+        assertThat(operator, Matchers.contains(
+                containsString("-ERROR- 入力ファイルのバリデーションでエラーが発生しました。入力ファイルが正しいかなどを相手先システムに確認してください。")
+        ));
     }
 
     /**
@@ -307,7 +316,10 @@ public class ValidationBatchletTest {
         );
 
         // -------------------------------------------------- execute
-        assertThat("エラーありなのでVALIDATION_ERROR", sut.process(), is("VALIDATION_ERROR"));
+        assertThat("エラーありなので警告あり終了", sut.process(), is("WARNING"));
+        new Verifications() {{
+            mockJobContext.setExitStatus("WARNING");
+        }};
 
         // -------------------------------------------------- assert table
         final List<ValidationBatchletErrorEntity> errors = VariousDbTestHelper.findAll(
@@ -344,6 +356,11 @@ public class ValidationBatchletTest {
                 containsString("job name: [validation_multiError_job] step name: [validation_multiError_step] input count: [5]"),
                 containsString("remaining count: [0]")
         ));
+        
+        final List<String> operator = OnMemoryLogWriter.getMessages("writer.operator");
+        assertThat(operator, Matchers.contains(
+                containsString("-ERROR- 入力ファイルのバリデーションでエラーが発生しました。入力ファイルが正しいかなどを相手先システムに確認してください。")
+        ));
     }
 
     /**
@@ -374,7 +391,10 @@ public class ValidationBatchletTest {
         );
 
         // -------------------------------------------------- execute
-        assertThat("エラーありなのでVALIDATION_ERROR", sut.process(), is("VALIDATION_ERROR"));
+        assertThat("エラーありなので警告あり終了", sut.process(), is("WARNING"));
+        new Verifications() {{
+            mockJobContext.setExitStatus("WARNING");
+        }};
 
         // -------------------------------------------------- assert table
         final List<ValidationBatchletErrorEntity> errors = VariousDbTestHelper.findAll(
@@ -397,6 +417,11 @@ public class ValidationBatchletTest {
                         + " bean class=[" + ValidationBatchletBean.class.getName() + "],"
                         + " line count=[5],"
                         + " error count=[1]"));
+        
+        final List<String> operator = OnMemoryLogWriter.getMessages("writer.operator");
+        assertThat(operator, Matchers.contains(
+                containsString("-ERROR- 入力ファイルのバリデーションでエラーが発生しました。入力ファイルが正しいかなどを相手先システムに確認してください。")
+        ));
     }
 
     /**
@@ -448,6 +473,11 @@ public class ValidationBatchletTest {
                         + " bean class=[" + ValidationBatchletBean.class.getName() + "],"
                         + " line count=[5],"
                         + " error count=[3]"));
+        
+        final List<String> operator = OnMemoryLogWriter.getMessages("writer.operator");
+        assertThat(operator, Matchers.contains(
+                containsString("-ERROR- 入力ファイルのバリデーションでエラーが発生しました。入力ファイルが正しいかなどを相手先システムに確認してください。")
+        ));
     }
 
     /**

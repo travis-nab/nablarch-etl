@@ -249,7 +249,7 @@ public class FileItemWriterTest {
             fail();
         } catch (BatchRuntimeException e) {
             final String message = "出力ファイルパスが正しくありません。ディレクトリが存在しているか、権限が正しいかを確認してください。出力ファイルパス=[" + output.getAbsolutePath() + ']';
-            assertThat(OnMemoryLogWriter.getMessages("writer.memory")
+            assertThat(OnMemoryLogWriter.getMessages("writer.operator")
                                         .get(0), containsString("-ERROR- " + message));
             assertThat(e.getMessage(), is(message));
         }

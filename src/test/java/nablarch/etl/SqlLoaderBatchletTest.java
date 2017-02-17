@@ -251,7 +251,7 @@ public class SqlLoaderBatchletTest {
         final String exitStatus = sut.process();
         assertThat(exitStatus, is("FAILED"));
 
-        assertThat(OnMemoryLogWriter.getMessages("writer.memory").get(0),
+        assertThat(OnMemoryLogWriter.getMessages("writer.operator").get(0),
                 containsString("-ERROR- 入力ファイルが存在しません。外部からファイルを受信できているか、"
                         + "ディレクトリやファイルの権限は正しいかを確認してください。入力ファイル=["
                         + new File(inputFilePath, "not_found.csv").getAbsolutePath() + ']'));
@@ -277,7 +277,7 @@ public class SqlLoaderBatchletTest {
         final String exitStatus = sut.process();
         assertThat(exitStatus, is("FAILED"));
 
-        assertThat(OnMemoryLogWriter.getMessages("writer.memory").get(0),
+        assertThat(OnMemoryLogWriter.getMessages("writer.operator").get(0),
                 containsString("-ERROR- 入力ファイルが存在しません。外部からファイルを受信できているか、"
                         + "ディレクトリやファイルの権限は正しいかを確認してください。入力ファイル=["
                         + new File(inputFilePath, "data").getAbsolutePath() + ']'));
