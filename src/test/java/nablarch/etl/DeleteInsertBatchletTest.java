@@ -14,13 +14,12 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
 
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
+import nablarch.core.db.DbAccessException;
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
-import nablarch.core.db.statement.exception.SqlStatementException;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.core.transaction.TransactionFactory;
 import nablarch.etl.config.DbToDbStepConfig;
@@ -43,7 +42,6 @@ import org.junit.runner.RunWith;
 
 import mockit.Expectations;
 import mockit.Mocked;
-import mockit.NonStrictExpectations;
 
 /**
  * {@link DeleteInsertBatchlet}のテストクラス。
@@ -510,7 +508,7 @@ public class DeleteInsertBatchletTest {
         try {
             sut.process();
             fail("ここは通過しない");
-        } catch (SqlStatementException ignored) {
+        } catch (DbAccessException ignored) {
         }
         connection.commit();
 

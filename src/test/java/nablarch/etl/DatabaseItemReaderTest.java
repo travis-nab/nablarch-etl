@@ -11,10 +11,10 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
 
+import nablarch.core.db.DbAccessException;
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
-import nablarch.core.db.statement.exception.SqlStatementException;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.etl.config.DbInputStepConfig;
 import nablarch.fw.batch.ee.progress.BasicProgressManager;
@@ -30,7 +30,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import mockit.Deencapsulation;
 import mockit.Expectations;
 import mockit.Mocked;
 
@@ -259,8 +258,8 @@ public class DatabaseItemReaderTest {
         try {
             sut.open(null);
             fail("存在しないカラムを使ってSELECTしようとしているのでここにはこない");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(SqlStatementException.class));
+        } catch (DbAccessException e) {
+            assertThat(true, is(true));
         }
     }
 

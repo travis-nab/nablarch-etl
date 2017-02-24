@@ -802,7 +802,7 @@ public class ValidationBatchletTest {
     }
 
     @Entity
-    @Table(name = "etl_validation_test")
+    @Table(name = "etl_validation_test", schema = "ssd")
     public static class ValidationBatchletEntity {
 
         @Column(name = "line_number", length = 15)
@@ -830,7 +830,7 @@ public class ValidationBatchletTest {
     }
 
     @Entity
-    @Table(name = "etl_validation_test_error")
+    @Table(name = "etl_validation_test_error", schema = "ssd")
     public static class ValidationBatchletErrorEntity {
 
         @Column(name = "line_number", length = 15)
