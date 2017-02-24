@@ -29,6 +29,7 @@ import nablarch.etl.config.DbToDbStepConfig;
 import nablarch.fw.batch.ee.progress.BasicProgressManager;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
+import nablarch.test.support.db.helper.TargetDb;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
 import nablarch.test.support.log.app.OnMemoryLogWriter;
 
@@ -49,6 +50,7 @@ import mockit.Mocked;
  * {@link MergeBatchlet}のテストクラス。
  */
 @RunWith(DatabaseTestRunner.class)
+@TargetDb(exclude = TargetDb.Db.POSTGRE_SQL)
 public class MergeBatchletTest {
 
     @ClassRule

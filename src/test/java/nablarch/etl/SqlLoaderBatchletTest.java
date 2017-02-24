@@ -19,6 +19,7 @@ import javax.persistence.Table;
 import nablarch.etl.config.FileToDbStepConfig;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
+import nablarch.test.support.db.helper.TargetDb;
 import nablarch.test.support.log.app.OnMemoryLogWriter;
 
 import org.junit.Before;
@@ -38,6 +39,7 @@ import mockit.NonStrictExpectations;
  * {@link SqlLoaderBatchlet}のテストクラス。
  */
 @RunWith(DatabaseTestRunner.class)
+@TargetDb(include = TargetDb.Db.ORACLE)
 public class SqlLoaderBatchletTest {
 
     @Rule

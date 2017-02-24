@@ -27,6 +27,7 @@ import nablarch.etl.integration.app.OutputTable3Entity;
 import nablarch.fw.batch.ee.initializer.RepositoryInitializer;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
+import nablarch.test.support.db.helper.TargetDb;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
 import nablarch.test.support.log.app.OnMemoryLogWriter;
 
@@ -267,6 +268,7 @@ public class EtlIntegrationTest {
      * 複数ファイル→複数テーブル(batchlet)の処理ができること。
      */
     @Test
+    @TargetDb(include = TargetDb.Db.ORACLE)
     public void executeMultiFilesToMultiTablesUsingBatchlet() throws IOException {
         assumeThat(System.getProperty("os.name").toLowerCase(), containsString("windows"));
 

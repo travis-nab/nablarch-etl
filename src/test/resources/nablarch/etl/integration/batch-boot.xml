@@ -7,18 +7,10 @@
   <config-file file="nablarch/etl/integration/integration-setting.config" />
   <config-file file="nablarch/etl/integration/db.config" />
 
-  <import file="nablarch/etl/integration/db.xml" />
+  <import file="db-default.xml" />
   <import file="nablarch/etl/integration/batchListeners.xml" />
 
   <import file="nablarch/etl/integration/validation.xml" />
 
-  <!-- 初期化機能の設定 -->
-  <component name="initializer" class="nablarch.core.repository.initialization.BasicApplicationInitializer">
-    <property name="initializeList">
-      <list>
-        <component-ref name="statementValueObjectCache" />
-      </list>
-    </property>
-  </component>
 
 </component-configuration>

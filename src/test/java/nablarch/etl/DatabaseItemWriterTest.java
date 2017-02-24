@@ -1,6 +1,7 @@
 package nablarch.etl;
 
 import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.beans.HasPropertyWithValue.*;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -13,6 +14,9 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
+
+import org.hamcrest.Matchers;
+import org.hamcrest.beans.HasPropertyWithValue;
 
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
@@ -33,8 +37,6 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import mockit.Deencapsulation;
-import mockit.Expectations;
 import mockit.Mocked;
 import mockit.NonStrictExpectations;
 
@@ -122,8 +124,6 @@ public class DatabaseItemWriterTest {
     
     /**
      * INSERTに失敗した場合、例外が送出されること。
-     *
-     * ※例外発生後にコミットを行うと、例外が発生したレコードまでは登録されていることを確認する。
      */
     @Test
     public void insertFailed() throws Exception {
@@ -148,21 +148,17 @@ public class DatabaseItemWriterTest {
             assertThat("一意制約違反の例外が発生する", e, instanceOf(DuplicateStatementException.class));
         }
 
-        // -------------------------------------------------- commit transaction
-        DbConnectionContext.getTransactionManagerConnection().commit();
+        // -------------------------------------------------- rollback transaction
+        DbConnectionContext.getTransactionManagerConnection().rollback();
 
         // -------------------------------------------------- assert table
         final List<EtlDatabaseItemWriterEntity> result =
                 VariousDbTestHelper.findAll(EtlDatabaseItemWriterEntity.class, "userId");
-        assertThat("元々存在していた1レコードとエラー発生前に挿入した2レコードで3レコードになる",
-                result.size(), is(3));
 
-        String[][] expected = {{"001", "name_1"}, {"002", "name_2"}, {"004", "name_4"}};
-        for (int i = 0; i < result.size(); i++) {
-            EtlDatabaseItemWriterEntity entity = result.get(i);
-            assertThat("id", entity.getUserId(), is(expected[i][0]));
-            assertThat("name", entity.getName(), is(expected[i][1]));
-        }
+        assertThat("元々の1レコードだけ存在していること", result, Matchers.contains(allOf(
+                hasProperty("userId", is("004")),
+                hasProperty("name", is("name_4"))
+        )));
     }
 
     /**
