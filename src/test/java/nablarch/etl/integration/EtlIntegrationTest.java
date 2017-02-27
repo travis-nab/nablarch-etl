@@ -16,9 +16,6 @@ import javax.batch.runtime.BatchRuntime;
 import javax.batch.runtime.BatchStatus;
 import javax.batch.runtime.JobExecution;
 
-import org.hamcrest.CoreMatchers;
-import org.hamcrest.Matchers;
-
 import nablarch.etl.integration.app.InputFile1Dto;
 import nablarch.etl.integration.app.InputFile2Dto;
 import nablarch.etl.integration.app.OutputTable1Entity;
@@ -29,7 +26,6 @@ import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
 import nablarch.test.support.db.helper.TargetDb;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
-import nablarch.test.support.log.app.OnMemoryLogWriter;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -43,6 +39,7 @@ import mockit.Deencapsulation;
  * ETLの結合テスト。
  */
 @RunWith(DatabaseTestRunner.class)
+@TargetDb(exclude = TargetDb.Db.DB2)
 public class EtlIntegrationTest {
 
     @Rule
