@@ -16,7 +16,6 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
 
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
 import nablarch.core.db.connection.ConnectionFactory;
@@ -50,7 +49,7 @@ import mockit.Mocked;
  * {@link MergeBatchlet}のテストクラス。
  */
 @RunWith(DatabaseTestRunner.class)
-@TargetDb(exclude = TargetDb.Db.POSTGRE_SQL)
+@TargetDb(exclude = {TargetDb.Db.POSTGRE_SQL, TargetDb.Db.H2})
 public class MergeBatchletTest {
 
     @ClassRule
