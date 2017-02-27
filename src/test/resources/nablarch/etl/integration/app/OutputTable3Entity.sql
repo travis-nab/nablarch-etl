@@ -3,7 +3,7 @@ SELECT
   user_id,
   name,
   col2,
-  cast(col3 as numeric)
+  cast(col3 as numeric) as col3
 FROM
   input_file1_table,
   input_file2_table

@@ -10,6 +10,6 @@ SELECT_OUTPUT_TABLE2_FROM_INPUT_FILE3=
 SELECT
   user_id as col1,
   col2,
-  cast(col3 as numeric)
+  cast(col3 as numeric) as col3
 FROM
   input_file3_table

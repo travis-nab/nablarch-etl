@@ -236,7 +236,8 @@ public class DeleteInsertBatchletTest {
         for (BulkInsertEntity entity : result) {
             index++;
             assertThat(entity.userId, is((long) index));
-            assertThat(entity.name, is("last" + index + " first" + index));
+            assertThat(entity.lastName, is("last" + index));
+            assertThat(entity.firstName, is("first" + index));
             assertThat(entity.address, is(address[index - 1]));
         }
 
@@ -274,7 +275,7 @@ public class DeleteInsertBatchletTest {
 
         // 既存のデータ
         VariousDbTestHelper.insert(
-                new BulkInsertEntity(3L, "hoge", "fuga")
+                new BulkInsertEntity(3L, "last", "first", "fuga")
         );
 
         // -------------------------------------------------- setup objects that is injected
@@ -303,7 +304,8 @@ public class DeleteInsertBatchletTest {
         for (BulkInsertEntity entity : result) {
             index++;
             assertThat(entity.userId, is((long) index));
-            assertThat(entity.name, is("last" + index + " first" + index));
+            assertThat(entity.lastName, is("last" + index));
+            assertThat(entity.firstName, is("first" + index));
             assertThat(entity.address, is(address[index - 1]));
         }
 
@@ -337,7 +339,7 @@ public class DeleteInsertBatchletTest {
 
         // 既存のデータ
         VariousDbTestHelper.insert(
-                new BulkInsertEntity(4L, "hoge", "fuga")
+                new BulkInsertEntity(4L, "last", "first", "fuga")
         );
 
         // -------------------------------------------------- setup objects that is injected
@@ -372,7 +374,8 @@ public class DeleteInsertBatchletTest {
         for (BulkInsertEntity entity : result) {
             index++;
             assertThat(entity.userId, is((long) index));
-            assertThat(entity.name, is("last" + index + " first" + index));
+            assertThat(entity.lastName, is("last" + index));
+            assertThat(entity.firstName, is("first" + index));
             assertThat(entity.address, is(address[index - 1]));
         }
 
@@ -412,8 +415,8 @@ public class DeleteInsertBatchletTest {
 
         // 既存のデータ
         VariousDbTestHelper.insert(
-                new BulkInsertEntity(3L, "hoge", "fuga"),
-                new BulkInsertEntity(99999L, "hoge-hoge", "fuga-fuga")
+                new BulkInsertEntity(3L, "last1", "first1", "fuga"),
+                new BulkInsertEntity(99999L, "last2", "first2", "fuga-fuga")
         );
 
         // -------------------------------------------------- setup objects that is injected
@@ -446,7 +449,8 @@ public class DeleteInsertBatchletTest {
         for (BulkInsertEntity entity : result) {
             index++;
             assertThat(entity.userId, is((long) index));
-            assertThat(entity.name, is("last" + index + " first" + index));
+            assertThat(entity.lastName, is("last" + index));
+            assertThat(entity.firstName, is("first" + index));
             assertThat(entity.address, is(address[index - 1]));
         }
 
@@ -489,7 +493,7 @@ public class DeleteInsertBatchletTest {
 
         // 既存のデータ
         VariousDbTestHelper.insert(
-                new BulkInsertEntity(3L, "hoge", "fuga")
+                new BulkInsertEntity(3L, "last", "first", "fuga")
         );
 
         // -------------------------------------------------- setup objects that is injected
@@ -589,8 +593,11 @@ public class DeleteInsertBatchletTest {
         @Column(name = "user_id", length = 15)
         public Long userId;
 
-        @Column(name = "name")
-        public String name;
+        @Column(name = "last_name")
+        public String lastName;
+
+        @Column(name = "first_name")
+        public String firstName;
 
         @Column(name = "address")
         public String address;
@@ -598,9 +605,10 @@ public class DeleteInsertBatchletTest {
         public BulkInsertEntity() {
         }
 
-        public BulkInsertEntity(Long userId, String name, String address) {
+        public BulkInsertEntity(Long userId, String lastName, String firstName, String address) {
             this.userId = userId;
-            this.name = name;
+            this.lastName = lastName;
+            this.firstName = firstName;
             this.address = address;
         }
     }

@@ -49,7 +49,7 @@ import mockit.Mocked;
  * {@link MergeBatchlet}のテストクラス。
  */
 @RunWith(DatabaseTestRunner.class)
-@TargetDb(exclude = {TargetDb.Db.POSTGRE_SQL, TargetDb.Db.H2})
+@TargetDb(exclude = {TargetDb.Db.POSTGRE_SQL, TargetDb.Db.H2, TargetDb.Db.SQL_SERVER})
 public class MergeBatchletTest {
 
     @ClassRule
