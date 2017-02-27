@@ -1,0 +1,33 @@
+{
+  "truncate": {
+    "type": "truncate",
+    "entities": [
+      "nablarch.etl.integration.app.InputFile1Dto",
+      "nablarch.etl.integration.app.InputFile1ErrorEntity"
+    ]
+  },
+  "extract": {
+    "type": "file2db",
+    "bean": "nablarch.etl.integration.app.InputFile1Dto",
+    "fileName": "inputfile1.csv"
+  },
+  "validation": {
+    "type": "validation",
+    "bean": "nablarch.etl.integration.app.InputFile1Dto",
+    "errorEntity": "nablarch.etl.integration.app.InputFile1ErrorEntity",
+    "mode": "ABORT"
+  },
+  "load": {
+    "type": "db2db",
+    "bean": "nablarch.etl.integration.app.OutputTable1Entity",
+    "sqlId": "SELECT_INPUT_FILE1_WITH_RANGE",
+    "mergeOnColumns": [
+      "user_id"
+    ],
+    "updateSize": {
+      "size": 5000,
+      "bean": "nablarch.etl.integration.app.InputFile1Dto"
+    }
+  }
+}
+

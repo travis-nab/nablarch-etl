@@ -1,7 +1,6 @@
 package nablarch.etl.integration;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assume.assumeThat;
 
@@ -320,6 +319,52 @@ public class EtlIntegrationTest {
                     put("col1", "10003");
                     put("col2", "efghijklmn");
                     put("col3", "30000");
+                }}
+        ));
+    }
+
+    /**
+     * merge文を用いたデータのロードを行うテスト
+     */
+    @Test
+    public void executeMergeLoad() throws Exception {
+        // setup input file
+        fileResource.createInputFile("inputfile1.csv",
+                "ユーザID,名前\r\n",
+                "1,なまえ1\r\n",
+                "2,なまえ2\r\n",
+                "3,なまえ3\r\n");
+        
+        // setup table
+        VariousDbTestHelper.setUpTable(
+                new OutputTable1Entity("1", "更新前の名前"),
+                new OutputTable1Entity("3", "更新前の名前3"),
+                new OutputTable1Entity("99", "これは更新されないデータ"));
+
+        // execute job
+        final JobExecution execution = EtlIntegrationTest.startJob("etl-integration-test-merge-load");
+        assertThat(execution.getBatchStatus(), is(BatchStatus.COMPLETED));
+
+        final List<InputFile1ErrorEntity> errors1 = VariousDbTestHelper.findAll(InputFile1ErrorEntity.class);
+        assertThat("エラーレコードは存在しない", errors1.size(), is(0));
+        
+        // assert output table
+        assertOutputTable1(Arrays.asList(
+                new HashMap<String, String>() {{
+                    put("userId", "1");
+                    put("name", "なまえ1");
+                }},
+                new HashMap<String, String>() {{
+                    put("userId", "2");
+                    put("name", "なまえ2");
+                }},
+                new HashMap<String, String>() {{
+                    put("userId", "3");
+                    put("name", "なまえ3");
+                }},
+                new HashMap<String, String>() {{
+                    put("userId", "99");
+                    put("name", "これは更新されないデータ");
                 }}
         ));
     }

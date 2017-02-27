@@ -11,3 +11,12 @@ SELECT
   name
 FROM
   input_file3_table
+  
+  
+SELECT_INPUT_FILE1_WITH_RANGE=
+SELECT
+  user_id,
+  name
+FROM
+  input_file1_table
+where line_number between ? and ?

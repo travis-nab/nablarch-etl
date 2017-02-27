@@ -25,6 +25,8 @@ import nablarch.core.db.statement.exception.DuplicateStatementException;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.core.transaction.TransactionFactory;
 import nablarch.etl.config.DbToDbStepConfig;
+import nablarch.etl.generator.H2MergeSqlGenerator;
+import nablarch.etl.generator.MergeSqlGenerator;
 import nablarch.fw.batch.ee.progress.BasicProgressManager;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
@@ -49,7 +51,7 @@ import mockit.Mocked;
  * {@link MergeBatchlet}のテストクラス。
  */
 @RunWith(DatabaseTestRunner.class)
-@TargetDb(exclude = {TargetDb.Db.POSTGRE_SQL, TargetDb.Db.H2, TargetDb.Db.SQL_SERVER})
+@TargetDb(exclude = {TargetDb.Db.POSTGRE_SQL})
 public class MergeBatchletTest {
 
     @ClassRule
@@ -65,7 +67,7 @@ public class MergeBatchletTest {
 
     @Mocked
     private StepContext mockStepContext;
-
+    
     @BeforeClass
     public static void setUpClass() throws Exception {
         VariousDbTestHelper.createTable(EtlMergeEntity.class);
@@ -119,7 +121,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         expectedException.expect(InvalidEtlConfigException.class);
         expectedException.expectMessage("bean is required. jobId = [test-job], stepId = [test-step]");
@@ -136,7 +139,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         expectedException.expect(InvalidEtlConfigException.class);
         expectedException.expectMessage("sqlId is required. jobId = [test-job], stepId = [test-step]");
@@ -154,7 +158,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         expectedException.expect(InvalidEtlConfigException.class);
         expectedException.expectMessage("mergeOnColumns is required. jobId = [test-job], stepId = [test-step]");
@@ -165,8 +170,9 @@ public class MergeBatchletTest {
     public void updateSizeSetNull_shouldThrowException() throws Exception {
         final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
         stepConfig.setBean(EtlMergeEntity.class);
-        stepConfig.setMergeOnColumns(Collections.singletonList("hoge"));
-        stepConfig.setSqlId("test");
+        stepConfig.setMergeOnColumns(Collections.singletonList("user_id"));
+        stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
+        stepConfig.initialize();
         final DbToDbStepConfig.UpdateSize size = new DbToDbStepConfig.UpdateSize();
         stepConfig.setUpdateSize(size);
 
@@ -175,7 +181,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         expectedException.expect(InvalidEtlConfigException.class);
         expectedException.expectMessage("updateSize.size is required. jobId = [test-job], stepId = [test-step]");
@@ -186,8 +193,9 @@ public class MergeBatchletTest {
     public void workTableBeanSetNull_shouldThrowException() throws Exception {
         final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
         stepConfig.setBean(EtlMergeEntity.class);
-        stepConfig.setMergeOnColumns(Collections.singletonList("hoge"));
-        stepConfig.setSqlId("test");
+        stepConfig.setMergeOnColumns(Collections.singletonList("user_id"));
+        stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
+        stepConfig.initialize();
         final DbToDbStepConfig.UpdateSize size = new DbToDbStepConfig.UpdateSize();
         size.setSize(1000);
         stepConfig.setUpdateSize(size);
@@ -197,7 +205,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         expectedException.expect(InvalidEtlConfigException.class);
         expectedException.expectMessage("updateSize.bean is required. jobId = [test-job], stepId = [test-step]");
@@ -211,8 +220,9 @@ public class MergeBatchletTest {
     public void testInvalidUpdateSize() throws Exception {
         final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
         stepConfig.setBean(EtlMergeEntity.class);
-        stepConfig.setMergeOnColumns(Collections.singletonList("hoge"));
-        stepConfig.setSqlId("test");
+        stepConfig.setMergeOnColumns(Collections.singletonList("user_id"));
+        stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
+        stepConfig.initialize();
         final DbToDbStepConfig.UpdateSize size = new DbToDbStepConfig.UpdateSize();
         size.setSize(0);
         stepConfig.setUpdateSize(size);
@@ -222,7 +232,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         expectedException.expect(InvalidEtlConfigException.class);
         expectedException.expectMessage("updateSize.size must be greater than 0. "
@@ -262,7 +273,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         // -------------------------------------------------- execute
         sut.process();
@@ -327,7 +339,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         // -------------------------------------------------- execute
         sut.process();
@@ -405,7 +418,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         // -------------------------------------------------- execute
         sut.process();
@@ -482,7 +496,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         // -------------------------------------------------- execute
         sut.process();
@@ -529,7 +544,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         // -------------------------------------------------- execute
         sut.process();
@@ -587,7 +603,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
         
         // -------------------------------------------------- execute
         sut.process();
@@ -646,7 +663,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         // -------------------------------------------------- execute
         try {
@@ -697,7 +715,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         // -------------------------------------------------- execute
         try {
@@ -750,7 +769,8 @@ public class MergeBatchletTest {
                 mockStepContext,
                 stepConfig,
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
-                new BasicProgressManager(mockJobContext, mockStepContext));
+                new BasicProgressManager(mockJobContext, mockStepContext)
+        );
 
         // -------------------------------------------------- execute
         expectedException.expect(InvalidEtlConfigException.class);
