@@ -15,13 +15,12 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
 
+import nablarch.core.db.statement.exception.SqlStatementException;
 import org.hamcrest.Matchers;
-import org.hamcrest.beans.HasPropertyWithValue;
 
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
-import nablarch.core.db.statement.exception.DuplicateStatementException;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.etl.config.DbToDbStepConfig;
 import nablarch.etl.config.FileToDbStepConfig;
@@ -145,7 +144,7 @@ public class DatabaseItemWriterTest {
             );
             fail("一意制約違反が発生するのでここは通過しない");
         } catch (Exception e) {
-            assertThat("一意制約違反の例外が発生する", e, instanceOf(DuplicateStatementException.class));
+            assertThat("一意制約違反の例外が発生する", e, instanceOf(SqlStatementException.class));
         }
 
         // -------------------------------------------------- rollback transaction

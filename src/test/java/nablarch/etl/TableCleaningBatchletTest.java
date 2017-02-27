@@ -1,7 +1,5 @@
 package nablarch.etl;
 
-import mockit.Deencapsulation;
-import mockit.Mocked;
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
@@ -9,18 +7,16 @@ import nablarch.core.transaction.TransactionContext;
 import nablarch.etl.config.TruncateStepConfig;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
+import nablarch.test.support.db.helper.TargetDb;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
 import nablarch.test.support.log.app.OnMemoryLogWriter;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 
-import javax.batch.runtime.context.StepContext;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
@@ -37,6 +33,7 @@ import static org.junit.matchers.JUnitMatchers.containsString;
  * {@link TableCleaningBatchlet}のテストクラス。
  */
 @RunWith(DatabaseTestRunner.class)
+@TargetDb(exclude = TargetDb.Db.DB2)
 public class TableCleaningBatchletTest {
 
     @ClassRule
