@@ -8,9 +8,16 @@ import java.util.Map;
 import javax.persistence.Entity;
 import javax.persistence.Table;
 
+import nablarch.core.db.connection.ConnectionFactory;
+import nablarch.core.db.connection.DbConnectionContext;
+import nablarch.core.transaction.TransactionContext;
 import nablarch.etl.InvalidEtlConfigException;
 import nablarch.etl.config.DbToDbStepConfig;
+import nablarch.test.support.SystemRepositoryResource;
 
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 /**
@@ -19,6 +26,20 @@ import org.junit.Test;
 public class MaxLineNumberSqlGeneratorTest {
 
     private final MaxLineNumberSqlGenerator sut = new MaxLineNumberSqlGenerator();
+    
+    @Rule
+    public SystemRepositoryResource systemRepositoryResource = new SystemRepositoryResource("db-default.xml");
+
+    @Before
+    public void setUp() throws Exception {
+        final ConnectionFactory connectionFactory = systemRepositoryResource.getComponentByType(ConnectionFactory.class);
+        DbConnectionContext.setConnection(connectionFactory.getConnection(TransactionContext.DEFAULT_TRANSACTION_CONTEXT_KEY));
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        DbConnectionContext.removeConnection();
+    }
 
     /**
      * 設定で指定されたEntityのテーブル名が入ったSQL文が生成されること。
