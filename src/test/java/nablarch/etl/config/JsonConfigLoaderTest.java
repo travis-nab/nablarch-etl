@@ -1,10 +1,13 @@
 package nablarch.etl.config;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
 import mockit.Expectations;
 import mockit.Mocked;
 import nablarch.core.repository.SystemRepository;
 import nablarch.core.repository.di.DiContainer;
 import nablarch.core.repository.di.config.xml.XmlComponentDefinitionLoader;
+import nablarch.etl.InvalidEtlConfigException;
+import org.hamcrest.CoreMatchers;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -13,6 +16,7 @@ import javax.batch.runtime.context.JobContext;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -91,7 +95,7 @@ public class JsonConfigLoaderTest {
             result = "etl-error";
         }};
 
-        expectedException.expect(IllegalStateException.class);
+        expectedException.expect(InvalidEtlConfigException.class);
         expectedException.expectMessage("failed to load etl config file. file = [classpath:META-INF/etl-config/etl-error.json]");
 
         sut.load(mockJobContext);
@@ -123,8 +127,26 @@ public class JsonConfigLoaderTest {
             result = "etl-error-common-setting";
         }};
 
-        expectedException.expect(IllegalStateException.class);
+        expectedException.expect(InvalidEtlConfigException.class);
         expectedException.expectMessage("failed to load etl config file. file = [classpath:META-INF/etl-config/etl-error-common-setting.json]");
+
+        sut.load(mockJobContext);
+    }
+
+    /**
+     * jsonファイルに不備があった場合に、JsonMappingExceptionを例外チェーンに含めないこと。
+     * 元例外のメッセージが詰められていること。
+     */
+    @Test
+    public void testNotIncludeJsonMappingExceptionInExceptionChain() throws Exception {
+        new Expectations(){{
+            mockJobContext.getJobName();
+            result = "json-fail-job";
+        }};
+
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("failed to load etl config file. file = [classpath:META-INF/etl-config/json-fail-job.json], message = [Can not construct instance of java.lang.Class, problem: notFound");
+        expectedException.expectCause(is(not(CoreMatchers.<Throwable> instanceOf(JsonMappingException.class))));
 
         sut.load(mockJobContext);
     }
