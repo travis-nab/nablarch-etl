@@ -3,9 +3,11 @@ package nablarch.etl.generator;
 import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.assertThat;
 
+import java.lang.annotation.Target;
 import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import javax.persistence.Column;
@@ -15,13 +17,16 @@ import javax.persistence.Table;
 
 import nablarch.common.dao.ColumnMeta;
 import nablarch.common.dao.EntityUtil;
+import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
 import nablarch.core.repository.SystemRepository;
+import nablarch.core.transaction.TransactionContext;
 import nablarch.etl.InvalidEtlConfigException;
 import nablarch.etl.config.DbToDbStepConfig;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
+import nablarch.test.support.db.helper.TargetDb;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
 
 import org.junit.After;
@@ -35,12 +40,13 @@ import mockit.Mocked;
 import mockit.NonStrictExpectations;
 
 /**
- * {@link MergeSqlGenerator}のテスト。
+ * {@link OracleMergeSqlGenerator}のテスト。
  */
 @RunWith(DatabaseTestRunner.class)
-public class MergeSqlGeneratorTest {
+@TargetDb(include = TargetDb.Db.ORACLE)
+public class OracleMergeSqlGeneratorTest {
 
-    SqlGeneratorSupport sut = new MergeSqlGenerator();
+    private MergeSqlGenerator sut = new OracleMergeSqlGenerator();
 
     @ClassRule
     public static SystemRepositoryResource resource = new SystemRepositoryResource("db-default.xml");
@@ -50,26 +56,19 @@ public class MergeSqlGeneratorTest {
         VariousDbTestHelper.createTable(EtlMergeGenEntity.class);
     }
 
-    @Mocked
-    TransactionManagerConnection mockConnection;
-
-    Connection connection;
-
     @Before
     public void setUp() throws Exception {
-        connection = VariousDbTestHelper.getNativeConnection();
-        new NonStrictExpectations() {{
-            mockConnection.getConnection();
-            result = connection;
-        }};
-        DbConnectionContext.setConnection(mockConnection);
+        final ConnectionFactory connectionFactory = resource.getComponentByType(ConnectionFactory.class);
+        final TransactionManagerConnection connection = connectionFactory.getConnection(
+                TransactionContext.DEFAULT_TRANSACTION_CONTEXT_KEY);
+        DbConnectionContext.setConnection(connection);
     }
 
     @After
     public void tearDown() throws Exception {
-        connection.close();
+        final TransactionManagerConnection connection = DbConnectionContext.getTransactionManagerConnection();
+        connection.terminate();
         DbConnectionContext.removeConnection();
-        SystemRepository.clear();
     }
 
     /**
@@ -78,24 +77,17 @@ public class MergeSqlGeneratorTest {
     @Test
     public void generateMergeSql() throws Exception {
 
-        final String inputResource = "select id test_id, name1 last_name, name2 first_name from input_table";
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeGenEntity.class);
+        stepConfig.setMergeOnColumns(Collections.singletonList("test_id"));
+        stepConfig.setSqlId("select");
+        stepConfig.initialize();
 
-        final DbToDbStepConfig config = new DbToDbStepConfig() {
-            {
-                setBean(EtlMergeGenEntity.class);
-                setMergeOnColumns(Arrays.asList("test_id"));
-            }
-            @Override
-            public String getSql() {
-                return inputResource;
-            }
-        };
-
-        final String actual = sut.generateSql(config);
+        final String actual = sut.generateSql(stepConfig);
 
         assertThat("MERGE文が生成されること", actual,
                 is("merge into etl_merge_gen output_"
-                                + " using (" + inputResource + ") input_"
+                                + " using (select id test_id, name1 last_name, name2 first_name from input_table) input_"
                                 + " on (output_.test_id = input_.test_id)"
                                 + " when matched then update set " + makeSetClause(EtlMergeGenEntity.class)
                                 + " when not matched then insert (" + makeInsertClause(EtlMergeGenEntity.class, "")
@@ -110,25 +102,17 @@ public class MergeSqlGeneratorTest {
     @Test
     public void generateMergeSql_multiJoinColumn() throws Exception {
 
-        final String inputResource = "select id test_id, name1 last_name, name2 first_name from input_table";
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(EtlMergeGenEntity.class);
+        stepConfig.setMergeOnColumns(Arrays.asList("first_name", "last_name"));
+        stepConfig.setSqlId("select");
+        stepConfig.initialize();
 
-        final DbToDbStepConfig config = new DbToDbStepConfig() {
-            {
-                setBean(EtlMergeGenEntity.class);
-                setMergeOnColumns(Arrays.asList("first_name", "last_name"));
-            }
-            @Override
-            public String getSql() {
-                return inputResource;
-            }
-        };
-
-        final String actual = sut.generateSql(config);
+        final String actual = sut.generateSql(stepConfig);
 
         assertThat("MERGE文が生成されること", actual,
                 is("merge into etl_merge_gen output_"
-                                + " using (" + inputResource + ") input_"
-                                // 結合カラムが複数の場合andで連結される
+                                + " using (select id test_id, name1 last_name, name2 first_name from input_table) input_"
                                 + " on (output_.first_name = input_.first_name and output_.last_name = input_.last_name)"
                                 + " when matched then update set " + makeSetClause(EtlMergeGenEntity.class, "first_name", "last_name")
                                 + " when not matched then insert (" + makeInsertClause(EtlMergeGenEntity.class, "")
@@ -141,18 +125,9 @@ public class MergeSqlGeneratorTest {
      */
     @Test(expected = InvalidEtlConfigException.class)
     public void notEntityClass() throws Exception {
-
-        final DbToDbStepConfig config = new DbToDbStepConfig() {
-            {
-                setBean(ArrayList.class);
-            }
-            @Override
-            public String getSql() {
-                return "";
-            }
-        };
-
-        sut.generateSql(config);
+        final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
+        stepConfig.setBean(ArrayList.class);
+        sut.generateSql(stepConfig);
     }
 
     /**
