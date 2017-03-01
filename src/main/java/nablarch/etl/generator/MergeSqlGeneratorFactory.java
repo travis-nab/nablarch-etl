@@ -16,6 +16,8 @@ import nablarch.etl.EtlUtil;
  * <li>Oracle</li>
  * <li>H2</li>
  * <li>SQL Server</li>
+ * <li>PostgreSQL</li>
+ * <li>DB2</li>
  * </ul>
  *
  * @author siosio
@@ -36,12 +38,14 @@ public final class MergeSqlGeneratorFactory {
      */
     public static MergeSqlGenerator create(final TransactionManagerConnection connection) {
         final String url = EtlUtil.getUrl(connection);
-        if (url.startsWith("jdbc:oracle")) {
-            return new OracleMergeSqlGenerator();
+        if (url.startsWith("jdbc:oracle") || url.startsWith("jdbc:db2")) {
+            return new StandardMergeSqlGenerator();
         } else if (url.startsWith("jdbc:h2")) {
             return new H2MergeSqlGenerator();
         } else if (url.startsWith("jdbc:sqlserver")) {
             return new SqlServerMergeSqlGenerator();
+        } else if (url.startsWith("jdbc:postgresql:")) {
+            return new PostgresMergeSqlGenerator();
         } else {
             throw new IllegalStateException("database that can not use merge. database url: " + url);
         }

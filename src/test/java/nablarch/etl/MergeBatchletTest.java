@@ -1,6 +1,7 @@
 package nablarch.etl;
 
 import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.beans.HasPropertyWithValue.hasProperty;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -21,16 +22,13 @@ import org.hamcrest.Matchers;
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
-import nablarch.core.db.statement.exception.DuplicateStatementException;
+import nablarch.core.db.statement.exception.SqlStatementException;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.core.transaction.TransactionFactory;
 import nablarch.etl.config.DbToDbStepConfig;
-import nablarch.etl.generator.H2MergeSqlGenerator;
-import nablarch.etl.generator.MergeSqlGenerator;
 import nablarch.fw.batch.ee.progress.BasicProgressManager;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
-import nablarch.test.support.db.helper.TargetDb;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
 import nablarch.test.support.log.app.OnMemoryLogWriter;
 
@@ -51,7 +49,6 @@ import mockit.Mocked;
  * {@link MergeBatchlet}のテストクラス。
  */
 @RunWith(DatabaseTestRunner.class)
-@TargetDb(exclude = {TargetDb.Db.POSTGRE_SQL})
 public class MergeBatchletTest {
 
     @ClassRule
@@ -72,6 +69,8 @@ public class MergeBatchletTest {
     public static void setUpClass() throws Exception {
         VariousDbTestHelper.createTable(EtlMergeEntity.class);
         VariousDbTestHelper.createTable(EtlMergeInputWorkEntity.class);
+        VariousDbTestHelper.createTable(EtlMergeMultiKey.class);
+        VariousDbTestHelper.createTable(EtlMergeMultiKeyWork.class);
 
         TransactionFactory transactionFactory = resource.getComponent("jdbcTransactionFactory");
         TransactionContext.setTransaction(TransactionContext.DEFAULT_TRANSACTION_CONTEXT_KEY,
@@ -522,21 +521,22 @@ public class MergeBatchletTest {
     public void merge_multiJoinColumn() throws Exception {
         // -------------------------------------------------- setup table data
         VariousDbTestHelper.setUpTable(
-                new EtlMergeInputWorkEntity(1L, 1L, "name1", "address1"),
-                new EtlMergeInputWorkEntity(2L, 2L, "name2", "address2"),
-                new EtlMergeInputWorkEntity(3L, 3L, "name3", "address3"),
-                new EtlMergeInputWorkEntity(4L, 4L, "name4", "address4"),
-                new EtlMergeInputWorkEntity(5L, 5L, "name5", "address5")
+                new EtlMergeMultiKeyWork(1L, "1", "user1@mail.com", "user1"),
+                new EtlMergeMultiKeyWork(2L, "1", "user1@mail.com2", "user1"),
+                new EtlMergeMultiKeyWork(3L, "2", "user2@mail.com", "user2"),
+                new EtlMergeMultiKeyWork(4L, "99", "user99@mail.com", "user99")
         );
 
         VariousDbTestHelper.setUpTable(
-                new EtlMergeEntity(3L, "name3", "3"),
-                new EtlMergeEntity(5L, "name5", "更新される住所"));
+                new EtlMergeMultiKey(1L, "user1@mail.com2", "更新前_user1"),
+                new EtlMergeMultiKey(2L, "user2@mail.com2", "更新されない_user2"),
+                new EtlMergeMultiKey(100L, "user100@mail.com", "user100")
+        );
 
         // -------------------------------------------------- setup objects that is injected
         final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
-        stepConfig.setBean(EtlMergeEntity.class);
-        stepConfig.setMergeOnColumns(Arrays.asList("user_id", "name"));
+        stepConfig.setBean(EtlMergeMultiKey.class);
+        stepConfig.setMergeOnColumns(Arrays.asList("id", "mail_address"));
         stepConfig.setSqlId("SELECT_ALL");
         stepConfig.initialize();
         final MergeBatchlet sut = new MergeBatchlet(
@@ -552,20 +552,20 @@ public class MergeBatchletTest {
         connection.commit();
 
         // -------------------------------------------------- assert
-        final List<EtlMergeEntity> result = VariousDbTestHelper.findAll(EtlMergeEntity.class, "userId");
-        assertThat("更新1、追加4で5レコード存在する", result.size(), is(5));
-        for (int i = 0; i < 5; i++) {
-            final EtlMergeEntity entity = result.get(i);
-            int index = i + 1;
-            assertThat(entity.userId, is((long) index));
-            assertThat(entity.name, is("name" + index));
-            assertThat(entity.address, is("address" + index));
-        }
-
-        assertSqlExecutionAndCommitTimes("update count = [5]");
+        final List<EtlMergeMultiKey> result = VariousDbTestHelper.findAll(EtlMergeMultiKey.class, "id", "mailAddress");
+        assertThat(result, Matchers.contains(
+                allOf(hasProperty("id", is(1L)), hasProperty("mailAddress", is("user1@mail.com")), hasProperty("name", is("user1"))),
+                allOf(hasProperty("id", is(1L)), hasProperty("mailAddress", is("user1@mail.com2")), hasProperty("name", is("user1"))),
+                allOf(hasProperty("id", is(2L)), hasProperty("mailAddress", is("user2@mail.com")), hasProperty("name", is("user2"))),
+                allOf(hasProperty("id", is(2L)), hasProperty("mailAddress", is("user2@mail.com2")), hasProperty("name", is("更新されない_user2"))),
+                allOf(hasProperty("id", is(99L)), hasProperty("mailAddress", is("user99@mail.com")), hasProperty("name", is("user99"))),
+                allOf(hasProperty("id", is(100L)), hasProperty("mailAddress", is("user100@mail.com")), hasProperty("name", is("user100")))
+        ));
+        
+        assertSqlExecutionAndCommitTimes("update count = [4]");
         final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
         assertThat(messages, Matchers.contains(
-                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [5]"),
+                containsString("-INFO- job name: [test-job] step name: [test-step] input count: [4]"),
                 containsString("remaining count: [0]")
         ));
     }
@@ -577,25 +577,26 @@ public class MergeBatchletTest {
     public void merge_multiJoinColumnUsingSplit() throws Exception {
         // -------------------------------------------------- setup table data
         VariousDbTestHelper.setUpTable(
-                new EtlMergeInputWorkEntity(1L, 1L, "name1", "address1"),
-                new EtlMergeInputWorkEntity(2L, 2L, "name2", "address2"),
-                new EtlMergeInputWorkEntity(3L, 3L, "name3", "address3"),
-                new EtlMergeInputWorkEntity(4L, 4L, "name4", "address4"),
-                new EtlMergeInputWorkEntity(5L, 5L, "name5", "address5")
+                new EtlMergeMultiKeyWork(1L, "1", "user1@mail.com", "user1"),
+                new EtlMergeMultiKeyWork(2L, "1", "user1@mail.com2", "user1"),
+                new EtlMergeMultiKeyWork(3L, "2", "user2@mail.com", "user2"),
+                new EtlMergeMultiKeyWork(4L, "99", "user99@mail.com", "user99")
         );
 
         VariousDbTestHelper.setUpTable(
-                new EtlMergeEntity(3L, "name3", "3"),
-                new EtlMergeEntity(5L, "name5", "更新される住所"));
+                new EtlMergeMultiKey(1L, "user1@mail.com2", "更新前_user1"),
+                new EtlMergeMultiKey(2L, "user2@mail.com2", "更新されない_user2"),
+                new EtlMergeMultiKey(100L, "user100@mail.com", "user100")
+        );
 
         // -------------------------------------------------- setup objects that is injected
         final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
-        stepConfig.setBean(EtlMergeEntity.class);
-        stepConfig.setMergeOnColumns(Arrays.asList("user_id", "name"));
+        stepConfig.setBean(EtlMergeMultiKey.class);
+        stepConfig.setMergeOnColumns(Arrays.asList("id", "mail_address"));
         stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
         final DbToDbStepConfig.UpdateSize size = new DbToDbStepConfig.UpdateSize();
         size.setSize(2);
-        size.setBean(EtlMergeInputWorkEntity.class);
+        size.setBean(EtlMergeMultiKeyWork.class);
         stepConfig.setUpdateSize(size);
         stepConfig.initialize();
         final MergeBatchlet sut = new MergeBatchlet(
@@ -605,32 +606,30 @@ public class MergeBatchletTest {
                 new RangeUpdateHelper(mockJobContext, mockStepContext),
                 new BasicProgressManager(mockJobContext, mockStepContext)
         );
-        
+
         // -------------------------------------------------- execute
         sut.process();
         connection.commit();
 
         // -------------------------------------------------- assert
-        final List<EtlMergeEntity> result = VariousDbTestHelper.findAll(EtlMergeEntity.class, "userId");
-        assertThat("更新1、追加4で5レコード存在する", result.size(), is(5));
-        for (int i = 0; i < 5; i++) {
-            final EtlMergeEntity entity = result.get(i);
-            int index = i + 1;
-            assertThat(entity.userId, is((long) index));
-            assertThat(entity.name, is("name" + index));
-            assertThat(entity.address, is("address" + index));
-        }
+        final List<EtlMergeMultiKey> result = VariousDbTestHelper.findAll(EtlMergeMultiKey.class, "id", "mailAddress");
+        assertThat(result, Matchers.contains(
+                allOf(hasProperty("id", is(1L)), hasProperty("mailAddress", is("user1@mail.com")), hasProperty("name", is("user1"))),
+                allOf(hasProperty("id", is(1L)), hasProperty("mailAddress", is("user1@mail.com2")), hasProperty("name", is("user1"))),
+                allOf(hasProperty("id", is(2L)), hasProperty("mailAddress", is("user2@mail.com")), hasProperty("name", is("user2"))),
+                allOf(hasProperty("id", is(2L)), hasProperty("mailAddress", is("user2@mail.com2")), hasProperty("name", is("更新されない_user2"))),
+                allOf(hasProperty("id", is(99L)), hasProperty("mailAddress", is("user99@mail.com")), hasProperty("name", is("user99"))),
+                allOf(hasProperty("id", is(100L)), hasProperty("mailAddress", is("user100@mail.com")), hasProperty("name", is("user100")))
+        ));
 
         assertSqlExecutionAndCommitTimes(
                 "update count = [2]", COMMIT_MSG,
-                "update count = [2]", COMMIT_MSG,
-                "update count = [1]", COMMIT_MSG);
+                "update count = [2]", COMMIT_MSG);
 
         final List<String> messages = OnMemoryLogWriter.getMessages("writer.progress");
         assertThat(messages, Matchers.contains(
-                containsString("input count: [5]"),
-                containsString("remaining count: [3]"),
-                containsString("remaining count: [1]"),
+                containsString("input count: [4]"),
+                containsString("remaining count: [2]"),
                 containsString("remaining count: [0]")
         ));
     }
@@ -644,7 +643,7 @@ public class MergeBatchletTest {
         VariousDbTestHelper.setUpTable(
                 new EtlMergeInputWorkEntity(1L, 1L, "name1", "address1"),
                 new EtlMergeInputWorkEntity(2L, 2L, "name2", "address2"),
-                new EtlMergeInputWorkEntity(3L, 3L, "name3", "address3"),
+                new EtlMergeInputWorkEntity(3L, 3L, "111111111111111111111111111111", "address3"),
                 new EtlMergeInputWorkEntity(4L, 4L, "name4", "address4"),
                 new EtlMergeInputWorkEntity(5L, 5L, "name5", "address5")
         );
@@ -655,7 +654,7 @@ public class MergeBatchletTest {
         // -------------------------------------------------- setup objects that is injected
         final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
         stepConfig.setBean(EtlMergeEntity.class);
-        stepConfig.setMergeOnColumns(Arrays.asList("user_id", "name"));
+        stepConfig.setMergeOnColumns(Arrays.asList("user_id"));
         stepConfig.setSqlId("SELECT_ALL");
         stepConfig.initialize();
         final MergeBatchlet sut = new MergeBatchlet(
@@ -669,9 +668,8 @@ public class MergeBatchletTest {
         // -------------------------------------------------- execute
         try {
             sut.process();
-            fail("一意制約違反がでるのでここまでこない");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(DuplicateStatementException.class));
+            fail();
+        } catch (SqlStatementException ignored) {
         }
         connection.commit();
 
@@ -688,11 +686,12 @@ public class MergeBatchletTest {
      */
     @Test
     public void mergeFailedUsingSplit() throws Exception {
+        
         // -------------------------------------------------- setup table data
         VariousDbTestHelper.setUpTable(
                 new EtlMergeInputWorkEntity(1L, 1L, "name1", "address1"),
                 new EtlMergeInputWorkEntity(2L, 2L, "name2", "address2"),
-                new EtlMergeInputWorkEntity(3L, 3L, "name3", "address3"),
+                new EtlMergeInputWorkEntity(3L, 3L, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "address3"),
                 new EtlMergeInputWorkEntity(4L, 4L, "name4", "address4"),
                 new EtlMergeInputWorkEntity(5L, 5L, "name5", "address5")
         );
@@ -703,7 +702,7 @@ public class MergeBatchletTest {
         // -------------------------------------------------- setup objects that is injected
         final DbToDbStepConfig stepConfig = new DbToDbStepConfig();
         stepConfig.setBean(EtlMergeEntity.class);
-        stepConfig.setMergeOnColumns(Arrays.asList("user_id", "name"));
+        stepConfig.setMergeOnColumns(Arrays.asList("user_id"));
         stepConfig.setSqlId("SELECT_ALL_WITH_RANGE");
         final DbToDbStepConfig.UpdateSize size = new DbToDbStepConfig.UpdateSize();
         size.setSize(2);
@@ -721,9 +720,8 @@ public class MergeBatchletTest {
         // -------------------------------------------------- execute
         try {
             sut.process();
-            fail("一意制約違反がでるのでここまでこない");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(DuplicateStatementException.class));
+            fail();
+        } catch (SqlStatementException e) {
         }
         connection.commit();
 
@@ -841,7 +839,7 @@ public class MergeBatchletTest {
         @Column(name = "user_id", length = 15)
         public Long userId;
 
-        @Column(name = "name")
+        @Column(name = "name", length = 20)
         public String name;
 
         @Column(name = "address")
@@ -867,6 +865,74 @@ public class MergeBatchletTest {
 
         public String getAddress() {
             return address;
+        }
+    }
+
+    @Entity
+    @Table(name = "etl_merge_multikey")
+    public static class EtlMergeMultiKey {
+
+        @Id
+        @Column(name = "id", length = 10)
+        public Long id;
+
+        @Id
+        @Column(name = "mail_address")
+        public String mailAddress;
+
+        @Column(name = "name")
+        public String name;
+
+        public EtlMergeMultiKey() {
+        }
+
+        public EtlMergeMultiKey(final Long id, final String mailAddress, final String name) {
+            this.id = id;
+            this.mailAddress = mailAddress;
+            this.name = name;
+        }
+
+        @Id
+        public Long getId() {
+            return id;
+        }
+
+        @Id
+        public String getMailAddress() {
+            return mailAddress;
+        }
+
+        public String getName() {
+            return name;
+        }
+    }
+
+    @Entity
+    @Table(name = "etl_merge_multi_key_work")
+    public static class EtlMergeMultiKeyWork {
+
+        @Id
+        @Column(name = "line_number", length = 10)
+        public Long lineNumber;
+
+        @Column(name = "id")
+        public String id;
+
+        @Column(name = "mail_address")
+        public String mailAddress;
+
+        @Column(name = "name")
+        public String name;
+
+        public EtlMergeMultiKeyWork() {
+        }
+
+        public EtlMergeMultiKeyWork(final Long lineNumber, final String id, final String mailAddress,
+                final String name) {
+            this.lineNumber = lineNumber;
+            this.id = id;
+            this.mailAddress = mailAddress;
+            this.name = name;
         }
     }
 }

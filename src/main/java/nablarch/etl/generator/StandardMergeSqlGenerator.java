@@ -7,11 +7,11 @@ import nablarch.common.dao.EntityUtil;
 import nablarch.etl.config.DbToDbStepConfig;
 
 /**
- * 入力リソース(SELECT)文から登録/更新を一括で行うOracleデータベース用のMERGE文を生成するクラス。
+ * 入力リソース(SELECT)文から登録/更新を一括で行うSQL2003に準拠したMERGE文を生成するクラス。
  *
  * @author Hisaaki Shioiri
  */
-public class OracleMergeSqlGenerator extends MergeSqlGenerator {
+public class StandardMergeSqlGenerator extends MergeSqlGenerator {
 
     /** 入力テーブルの別名 */
     private static final String INPUT_TABLE_ALIAS = "input_";

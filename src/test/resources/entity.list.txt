@@ -19,3 +19,5 @@ nablarch.etl.TableCleaningBatchletTest$TableCleaningBatchletEntity
 nablarch.etl.TableCleaningBatchletTest$TableCleaningBatchletEntity2
 nablarch.etl.ValidationBatchletTest$ValidationBatchletEntity
 nablarch.etl.ValidationBatchletTest$ValidationBatchletErrorEntity
+nablarch.etl.MergeBatchletTest$EtlMergeMultiKey
+nablarch.etl.MergeBatchletTest$EtlMergeMultiKeyWork
