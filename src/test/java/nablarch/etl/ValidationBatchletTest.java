@@ -15,7 +15,6 @@ import javax.persistence.Table;
 import javax.persistence.Transient;
 import javax.validation.constraints.AssertTrue;
 
-import nablarch.test.support.db.helper.TargetDb;
 import org.hamcrest.Matchers;
 
 import nablarch.common.databind.csv.Csv;
@@ -51,7 +50,6 @@ import mockit.Verifications;
  * {@link ValidationBatchlet}のテスト。
  */
 @RunWith(DatabaseTestRunner.class)
-@TargetDb(exclude = TargetDb.Db.DB2)
 public class ValidationBatchletTest {
 
     @ClassRule

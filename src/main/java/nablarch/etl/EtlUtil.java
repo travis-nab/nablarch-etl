@@ -81,6 +81,23 @@ public final class EtlUtil {
     }
 
     /**
+     * データベース接続からURLを取得する。
+     *
+     * @param connection データベース接続
+     * @return URL
+     * @throws RuntimeException データベース関連の例外が発生した場合
+     */
+    public static String getUrl(final TransactionManagerConnection connection) {
+        try {
+            final DatabaseMetaData metaData = getMetaData(connection);
+            final String url = metaData.getURL();
+            return url == null ? "" : url.toLowerCase();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
      * 必須の設定項目を検証する。
      * <p/>
      * 値がnullの場合は、{@link InvalidEtlConfigException}を送出する。

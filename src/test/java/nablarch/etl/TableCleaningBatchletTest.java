@@ -4,10 +4,10 @@ import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
 import nablarch.core.transaction.TransactionContext;
+import nablarch.core.transaction.TransactionFactory;
 import nablarch.etl.config.TruncateStepConfig;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
-import nablarch.test.support.db.helper.TargetDb;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
 import nablarch.test.support.log.app.OnMemoryLogWriter;
 import org.junit.After;
@@ -25,15 +25,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
-import static org.junit.matchers.JUnitMatchers.containsString;
 
 /**
  * {@link TableCleaningBatchlet}のテストクラス。
  */
 @RunWith(DatabaseTestRunner.class)
-@TargetDb(exclude = TargetDb.Db.DB2)
 public class TableCleaningBatchletTest {
 
     @ClassRule
@@ -47,15 +46,18 @@ public class TableCleaningBatchletTest {
 
     @Before
     public void setUp() throws Exception {
-        final ConnectionFactory connectionFactory = resource.getComponentByType(ConnectionFactory.class);
-        final TransactionManagerConnection connection = connectionFactory.getConnection(
-                TransactionContext.DEFAULT_TRANSACTION_CONTEXT_KEY);
-        DbConnectionContext.setConnection(connection);
+        ConnectionFactory connectionFactory = resource.getComponent("connectionFactory");
+        DbConnectionContext.setConnection(connectionFactory.getConnection(TransactionContext.DEFAULT_TRANSACTION_CONTEXT_KEY));
+
+        TransactionFactory transactionFactory = resource.getComponent("jdbcTransactionFactory");
+        TransactionContext.setTransaction(TransactionContext.DEFAULT_TRANSACTION_CONTEXT_KEY,
+                transactionFactory.getTransaction(TransactionContext.DEFAULT_TRANSACTION_CONTEXT_KEY));
         OnMemoryLogWriter.clear();
     }
 
     @After
     public void tearDown() throws Exception {
+        TransactionContext.removeTransaction();
         final TransactionManagerConnection connection = DbConnectionContext.getTransactionManagerConnection();
         DbConnectionContext.removeConnection();
         connection.terminate();

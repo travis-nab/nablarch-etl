@@ -38,7 +38,6 @@ import mockit.Deencapsulation;
  * ETLの結合テスト。
  */
 @RunWith(DatabaseTestRunner.class)
-@TargetDb(exclude = TargetDb.Db.DB2)
 public class EtlIntegrationTest {
 
     @Rule

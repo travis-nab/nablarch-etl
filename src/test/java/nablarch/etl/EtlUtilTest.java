@@ -1,9 +1,12 @@
 package nablarch.etl;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.isEmptyString;
 import static org.junit.Assert.*;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -13,20 +16,25 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
 
+import mockit.NonStrictExpectations;
 import nablarch.common.dao.DatabaseUtil;
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
 import nablarch.core.transaction.TransactionContext;
+import nablarch.etl.generator.MergeSqlGeneratorFactory;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
 
+import org.hamcrest.core.IsInstanceOf;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
 import mockit.Expectations;
@@ -39,6 +47,9 @@ public class EtlUtilTest {
 
     @ClassRule
     public static SystemRepositoryResource resource = new SystemRepositoryResource("db-default.xml");
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     @BeforeClass
     public static void setUpClass() throws Exception {
@@ -94,6 +105,55 @@ public class EtlUtilTest {
         }};
 
         EtlUtil.getAllColumns("etl_util");
+    }
+
+    /**
+     * メタデータから取得したURLが返却されること。
+     * @throws Exception
+     */
+    @Test
+    public void getUrl() throws Exception {
+        final TransactionManagerConnection connection = DbConnectionContext.getTransactionManagerConnection();
+        new NonStrictExpectations(connection) {{
+            final DatabaseMetaData metaData = connection.getConnection().getMetaData();
+            metaData.getURL();
+            result = "jdbc:oracle:thin:@localhost:1521/xe";
+        }};
+        assertThat(EtlUtil.getUrl(connection), is("jdbc:oracle:thin:@localhost:1521/xe"));
+    }
+
+    /**
+     * URLが取得できなかった場合、空文字が返却されること。
+     * @throws Exception
+     */
+    @Test
+    public void getUrl_nullValue() throws Exception {
+        final TransactionManagerConnection connection = DbConnectionContext.getTransactionManagerConnection();
+        new NonStrictExpectations(connection) {{
+            final DatabaseMetaData metaData = connection.getConnection().getMetaData();
+            metaData.getURL();
+            result = null;
+        }};
+
+        assertThat(EtlUtil.getUrl(connection), isEmptyString());
+    }
+
+    /**
+     * URLの取得時にデータベース関連の例外発生時にRuntimeExceptionが送出されること。
+     * @throws Exception
+     */
+    @Test
+    public void getUrl_shouldThrowRuntimeException() throws Exception {
+        final TransactionManagerConnection connection = DbConnectionContext.getTransactionManagerConnection();
+        new NonStrictExpectations(connection) {{
+            final DatabaseMetaData metaData = connection.getConnection().getMetaData();
+            metaData.getURL();
+            result = new SQLException("db error");
+        }};
+
+        expectedException.expect(RuntimeException.class);
+        expectedException.expectCause(IsInstanceOf.<Throwable>instanceOf(SQLException.class));
+        EtlUtil.getUrl(connection);
     }
 
     /**

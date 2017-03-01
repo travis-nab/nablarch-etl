@@ -4,6 +4,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 
 import nablarch.core.db.connection.TransactionManagerConnection;
+import nablarch.etl.EtlUtil;
 
 /**
  * MERGE文のジェネレータのファクトリクラス。
@@ -34,7 +35,7 @@ public final class MergeSqlGeneratorFactory {
      * @return MERGE文のジェネレータ
      */
     public static MergeSqlGenerator create(final TransactionManagerConnection connection) {
-        final String url = getUrl(connection);
+        final String url = EtlUtil.getUrl(connection);
         if (url.startsWith("jdbc:oracle")) {
             return new OracleMergeSqlGenerator();
         } else if (url.startsWith("jdbc:h2")) {
@@ -43,23 +44,6 @@ public final class MergeSqlGeneratorFactory {
             return new SqlServerMergeSqlGenerator();
         } else {
             throw new IllegalStateException("database that can not use merge. database url: " + url);
-        }
-    }
-
-    /**
-     * データベース接続からURLを取得する。
-     *
-     * @param connection データベース接続
-     * @return URL
-     */
-    private static String getUrl(final TransactionManagerConnection connection) {
-        try {
-            final DatabaseMetaData metaData = connection.getConnection()
-                                                        .getMetaData();
-            final String url = metaData.getURL();
-            return url == null ? "" : url.toLowerCase();
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
         }
     }
 }
