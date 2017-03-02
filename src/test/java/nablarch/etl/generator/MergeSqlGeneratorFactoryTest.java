@@ -5,9 +5,6 @@ import static org.junit.Assert.assertThat;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.sql.SQLException;
-
-import org.hamcrest.core.IsInstanceOf;
 
 import nablarch.core.db.connection.TransactionManagerConnection;
 
@@ -25,7 +22,7 @@ public class MergeSqlGeneratorFactoryTest {
 
     @Mocked
     private TransactionManagerConnection mockConnection;
-    
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -79,20 +76,6 @@ public class MergeSqlGeneratorFactoryTest {
 
         expectedException.expect(IllegalStateException.class);
         expectedException.expectMessage("database that can not use merge. database url: ");
-        MergeSqlGeneratorFactory.create(mockConnection);
-    }
-
-    @Test
-    public void dbError_shouldThrowRuntimeException() throws Exception {
-        new NonStrictExpectations() {{
-            final Connection connection = mockConnection.getConnection();
-            final DatabaseMetaData metaData = connection.getMetaData();
-            metaData.getURL();
-            result = new SQLException("db error");
-        }};
-
-        expectedException.expect(RuntimeException.class);
-        expectedException.expectCause(IsInstanceOf.<Throwable>instanceOf(SQLException.class));
         MergeSqlGeneratorFactory.create(mockConnection);
     }
 }
