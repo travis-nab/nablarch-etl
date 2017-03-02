@@ -3,8 +3,6 @@ package nablarch.etl.generator;
 import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.assertThat;
 
-import java.lang.annotation.Target;
-import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -20,7 +18,6 @@ import nablarch.common.dao.EntityUtil;
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
-import nablarch.core.repository.SystemRepository;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.etl.InvalidEtlConfigException;
 import nablarch.etl.config.DbToDbStepConfig;
@@ -36,17 +33,14 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import mockit.Mocked;
-import mockit.NonStrictExpectations;
-
 /**
- * {@link OracleMergeSqlGenerator}のテスト。
+ * {@link StandardMergeSqlGenerator}のテスト。
  */
 @RunWith(DatabaseTestRunner.class)
-@TargetDb(include = TargetDb.Db.ORACLE)
-public class OracleMergeSqlGeneratorTest {
+@TargetDb(include = {TargetDb.Db.ORACLE, TargetDb.Db.DB2})
+public class StandardMergeSqlGeneratorTest {
 
-    private MergeSqlGenerator sut = new OracleMergeSqlGenerator();
+    private MergeSqlGenerator sut = new StandardMergeSqlGenerator();
 
     @ClassRule
     public static SystemRepositoryResource resource = new SystemRepositoryResource("db-default.xml");

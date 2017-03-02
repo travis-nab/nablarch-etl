@@ -36,7 +36,7 @@ public class MergeSqlGeneratorFactoryTest {
         }};
 
         assertThat(MergeSqlGeneratorFactory.create(mockConnection),
-                instanceOf(OracleMergeSqlGenerator.class));
+                instanceOf(StandardMergeSqlGenerator.class));
     }
 
     @Test
@@ -63,6 +63,19 @@ public class MergeSqlGeneratorFactoryTest {
 
         assertThat(MergeSqlGeneratorFactory.create(mockConnection),
                 instanceOf(SqlServerMergeSqlGenerator.class));
+    }
+
+    @Test
+    public void testPostgres() throws Exception {
+        new NonStrictExpectations() {{
+            final Connection connection = mockConnection.getConnection();
+            final DatabaseMetaData metaData = connection.getMetaData();
+            metaData.getURL();
+            result = "jdbc:postgresql:test-db";
+        }};
+
+        assertThat(MergeSqlGeneratorFactory.create(mockConnection),
+                instanceOf(PostgresMergeSqlGenerator.class));
     }
 
     @Test
