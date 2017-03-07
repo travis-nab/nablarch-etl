@@ -60,7 +60,7 @@ public class SqlLoaderBatchlet extends AbstractBatchlet {
 
     /**
      * コンストラクタ。
-     * @param jobContext JobContex
+     * @param jobContext JobContext
      * @param stepContext StepContext
      * @param stepConfig ステップの設定
      * @param inputFileBasePath 入力ファイルのあるディレクトリ
