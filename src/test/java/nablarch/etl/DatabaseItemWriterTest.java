@@ -1,7 +1,7 @@
 package nablarch.etl;
 
 import static org.hamcrest.CoreMatchers.*;
-import static org.hamcrest.beans.HasPropertyWithValue.*;
+import static org.hamcrest.beans.HasPropertyWithValue.hasProperty;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -15,15 +15,16 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
 
-import nablarch.core.db.statement.exception.SqlStatementException;
 import org.hamcrest.Matchers;
 
 import nablarch.core.db.connection.ConnectionFactory;
 import nablarch.core.db.connection.DbConnectionContext;
 import nablarch.core.db.connection.TransactionManagerConnection;
+import nablarch.core.db.statement.exception.SqlStatementException;
 import nablarch.core.transaction.TransactionContext;
 import nablarch.etl.config.DbToDbStepConfig;
 import nablarch.etl.config.FileToDbStepConfig;
+import nablarch.etl.config.StepConfig;
 import nablarch.test.support.SystemRepositoryResource;
 import nablarch.test.support.db.helper.DatabaseTestRunner;
 import nablarch.test.support.db.helper.VariousDbTestHelper;
@@ -33,7 +34,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
 import mockit.Mocked;
@@ -44,6 +47,9 @@ import mockit.NonStrictExpectations;
  */
 @RunWith(DatabaseTestRunner.class)
 public class DatabaseItemWriterTest {
+    
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     @Mocked
     private JobContext mockJobContext;
@@ -195,6 +201,28 @@ public class DatabaseItemWriterTest {
                 "-INFO- job name: [test-job] step name: [test-step] write table name: [etl_database_item_writer]");
     }
 
+    @Test
+    public void unsupportedStepConfigType_shouldThrowException() throws Exception {
+        final DatabaseItemWriter sut = new DatabaseItemWriter(
+                mockJobContext, mockStepContext, new MyStepConfig());
+
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("unsupported config type. supported class is DbToDbStepConfig or FileToDbStepConfig."
+                + " step config class: " + MyStepConfig.class.getName());
+        sut.open(null);
+    }
+
+    @Test
+    public void stepConfigIsNull_shouldThrowException() throws Exception {
+        final DatabaseItemWriter sut = new DatabaseItemWriter(
+                mockJobContext, mockStepContext, null);
+
+        expectedException.expect(InvalidEtlConfigException.class);
+        expectedException.expectMessage("unsupported config type. supported class is DbToDbStepConfig or FileToDbStepConfig."
+                + " step config class: null");
+        sut.open(null);
+    }
+
     // テスト用のEntityクラス
     @Entity
     @Table(name = "etl_database_item_writer")
@@ -232,6 +260,14 @@ public class DatabaseItemWriterTest {
 
         public void setName(String name) {
             this.name = name;
+        }
+    }
+
+    private static class MyStepConfig extends StepConfig {
+
+        @Override
+        protected void onInitialize() {
+
         }
     }
 }

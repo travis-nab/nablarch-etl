@@ -77,6 +77,19 @@ public class MergeSqlGeneratorFactoryTest {
         assertThat(MergeSqlGeneratorFactory.create(mockConnection),
                 instanceOf(PostgresMergeSqlGenerator.class));
     }
+    
+    @Test
+    public void testDb2() throws Exception {
+        new NonStrictExpectations() {{
+            final Connection connection = mockConnection.getConnection();
+            final DatabaseMetaData metaData = connection.getMetaData();
+            metaData.getURL();
+            result = "jdbc:db2:localhost:1234";
+        }};
+
+        assertThat(MergeSqlGeneratorFactory.create(mockConnection),
+                instanceOf(StandardMergeSqlGenerator.class));
+    }
 
     @Test
     public void urlIsNull_shouldThrowException() throws Exception {

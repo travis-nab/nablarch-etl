@@ -1,14 +1,8 @@
 package nablarch.etl;
 
-import nablarch.common.dao.EntityUtil;
-import nablarch.common.dao.UniversalDao;
-import nablarch.core.log.Logger;
-import nablarch.core.log.LoggerManager;
-import nablarch.etl.config.DbToDbStepConfig;
-import nablarch.etl.config.EtlConfig;
-import nablarch.etl.config.FileToDbStepConfig;
-import nablarch.etl.config.StepConfig;
-import nablarch.fw.batch.progress.ProgressLogger;
+import java.io.Serializable;
+import java.text.MessageFormat;
+import java.util.List;
 
 import javax.batch.api.chunk.AbstractItemWriter;
 import javax.batch.runtime.context.JobContext;
@@ -16,9 +10,14 @@ import javax.batch.runtime.context.StepContext;
 import javax.enterprise.context.Dependent;
 import javax.inject.Inject;
 import javax.inject.Named;
-import java.io.Serializable;
-import java.text.MessageFormat;
-import java.util.List;
+
+import nablarch.common.dao.EntityUtil;
+import nablarch.common.dao.UniversalDao;
+import nablarch.etl.config.DbToDbStepConfig;
+import nablarch.etl.config.EtlConfig;
+import nablarch.etl.config.FileToDbStepConfig;
+import nablarch.etl.config.StepConfig;
+import nablarch.fw.batch.progress.ProgressLogger;
 
 
 /**
@@ -64,6 +63,10 @@ public class DatabaseItemWriter extends AbstractItemWriter {
             loggingStartChunk(EntityUtil.getTableName(((DbToDbStepConfig)stepConfig).getBean()));
         } else if (stepConfig instanceof FileToDbStepConfig) {
             loggingStartChunk(EntityUtil.getTableName(((FileToDbStepConfig)stepConfig).getBean()));
+        } else {
+            throw new InvalidEtlConfigException(
+                    "unsupported config type. supported class is DbToDbStepConfig or FileToDbStepConfig."
+                            + " step config class: " + getStepConfigClassName());
         }
     }
 
@@ -79,5 +82,17 @@ public class DatabaseItemWriter extends AbstractItemWriter {
     private void loggingStartChunk(final String tableName) {
         ProgressLogger.write(MessageFormat.format("job name: [{0}] step name: [{1}] write table name: [{2}]",
                 jobContext.getJobName(), stepContext.getStepName(), tableName));
+    }
+
+    /**
+     * {@link StepConfig}のクラス名を返す。
+     * <p>
+     * {@link StepConfig}が{@code null}の場合は、文字列の{@code null}を返す。
+     *
+     * @return StepConfigのクラス名
+     */
+    private String getStepConfigClassName() {
+        return stepConfig == null ? "null" : stepConfig.getClass()
+                                                       .getName();
     }
 }
