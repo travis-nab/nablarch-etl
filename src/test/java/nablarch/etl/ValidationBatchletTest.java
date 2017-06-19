@@ -164,10 +164,10 @@ public class ValidationBatchletTest {
         final List<String> sqlLogs = OnMemoryLogWriter.getMessages("writer.sql");
         for (String sqlLog : sqlLogs) {
             if (sqlLog.contains("truncate")) {
-                assertThat("スキーマを指定したテーブル名になっていること", sqlLog, containsString("ssd.etl_validation_test_error"));
+                assertThat("スキーマを指定したテーブル名になっていること", sqlLog, containsString("ssd_master.etl_validation_test_error"));
             }
             if (sqlLog.matches("^select")) {
-                assertThat("スキーマを指定したテーブル名になっていること", sqlLog, containsString("ssd.etl_validation_test"));
+                assertThat("スキーマを指定したテーブル名になっていること", sqlLog, containsString("ssd_master.etl_validation_test"));
             }
         }
 
@@ -257,17 +257,17 @@ public class ValidationBatchletTest {
         final List<String> sqlLogs = OnMemoryLogWriter.getMessages("writer.sql");
         for (String sqlLog : sqlLogs) {
             if (sqlLog.contains("[truncate table")) {
-                assertThat("スキーマを指定したテーブル名になっていること", sqlLog, containsString("ssd.etl_validation_test_error"));
+                assertThat("スキーマを指定したテーブル名になっていること", sqlLog, containsString("ssd_master.etl_validation_test_error"));
             }
             if (sqlLog.contains("[SELECT ")) {
-                assertThat("スキーマを指定したテーブル名になっていること", sqlLog, containsString("ssd.etl_validation_test"));
+                assertThat("スキーマを指定したテーブル名になっていること", sqlLog, containsString("ssd_master.etl_validation_test"));
             }
 
             if (sqlLog.contains("[delete ")) {
                 assertThat("スキーマを指定したテーブル名になっていること", sqlLog,
                         allOf(
-                                containsString("ssd.etl_validation_test"),
-                                containsString("ssd.etl_validation_test_error")
+                                containsString("ssd_master.etl_validation_test"),
+                                containsString("ssd_master.etl_validation_test_error")
                         ));
             }
         }
@@ -749,7 +749,7 @@ public class ValidationBatchletTest {
 
     @Entity
     @Csv(type = Csv.CsvType.DEFAULT, properties = {"firstName", "lastName"})
-    @Table(name = "etl_validation_test", schema = "ssd")
+    @Table(name = "etl_validation_test", schema = "ssd_master")
     public static class ValidationBatchletBean extends WorkItem {
 
         private String firstName;
@@ -796,13 +796,13 @@ public class ValidationBatchletTest {
     }
 
     @Entity
-    @Table(name = "etl_validation_test_error", schema = "ssd")
+    @Table(name = "etl_validation_test_error", schema = "ssd_master")
     public static class ValidationBatchletErrorBean extends ValidationBatchletBean {
 
     }
 
     @Entity
-    @Table(name = "etl_validation_test", schema = "ssd")
+    @Table(name = "etl_validation_test", schema = "ssd_master")
     public static class ValidationBatchletEntity {
 
         @Column(name = "line_number", length = 15)
@@ -830,7 +830,7 @@ public class ValidationBatchletTest {
     }
 
     @Entity
-    @Table(name = "etl_validation_test_error", schema = "ssd")
+    @Table(name = "etl_validation_test_error", schema = "ssd_master")
     public static class ValidationBatchletErrorEntity {
 
         @Column(name = "line_number", length = 15)

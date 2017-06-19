@@ -105,7 +105,7 @@ public class H2MergeSqlGeneratorTest {
         stepConfig.initialize();
         final String sql = sut.generateSql(stepConfig);
 
-        assertThat(sql, is("merge into ssd.h2_entity_with_schema(ID,NAME)"
+        assertThat(sql, is("merge into ssd_master.h2_entity_with_schema(ID,NAME)"
                 + " key(id) select id, name, from input_table"));
     }
 
@@ -200,7 +200,7 @@ public class H2MergeSqlGeneratorTest {
     }
     
     @Entity
-    @Table(name = "h2_entity_with_schema", schema = "ssd")
+    @Table(name = "h2_entity_with_schema", schema = "ssd_master")
     public static class H2EntityWithSchema {
 
         @Id

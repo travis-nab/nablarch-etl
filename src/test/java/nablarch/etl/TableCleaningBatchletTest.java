@@ -166,7 +166,7 @@ public class TableCleaningBatchletTest {
         }
     }
 
-    @Table(name = "table_cleaning_batchlet2", schema = "ssd")
+    @Table(name = "table_cleaning_batchlet2", schema = "ssd_master")
     @Entity
     public static class TableCleaningBatchletEntity2 {
 
