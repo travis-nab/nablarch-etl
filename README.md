@@ -17,3 +17,8 @@ Oracle UCP for JDBC |ucp.jar          |com.oracle     |ucp                  |11.
 ```
 mvn install:install-file -Dfile=<ファイル名> -DgroupId=<グループID> -DartifactId=<アーティファクトID> -Dversion=<バージョン> -Dpackaging=jar
 ```
+
+
+| master | develop |
+|:-----------|:------------|
+|[![Build Status](https://travis-ci.org/nablarch/nablarch-etl.svg?branch=master)](https://travis-ci.org/nablarch/nablarch-etl)|[![Build Status](https://travis-ci.org/nablarch/nablarch-etl.svg?branch=develop)](https://travis-ci.org/nablarch/nablarch-etl)|
