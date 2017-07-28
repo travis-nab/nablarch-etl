@@ -73,7 +73,6 @@ test {
           '-XX:-UseSplitVerifier'
   )
 
-  ignoreFailures = true
 
 
   def jdk8Home = System.getenv('JDK8_HOME')
