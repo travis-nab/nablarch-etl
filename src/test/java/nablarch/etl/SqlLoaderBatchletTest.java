@@ -1,8 +1,6 @@
 package nablarch.etl;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -43,7 +41,8 @@ import mockit.NonStrictExpectations;
 public class SqlLoaderBatchletTest {
 
     @Rule
-    public SystemRepositoryResource repositoryResource = new SystemRepositoryResource("db-default.xml");
+    public SystemRepositoryResource repositoryResource = new SystemRepositoryResource(
+            "nablarch/etl/SqlLoaderBatchletTest.xml");
 
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -60,10 +59,6 @@ public class SqlLoaderBatchletTest {
     @Before
     public void setUp() throws Exception {
         OnMemoryLogWriter.clear();
-
-        repositoryResource.addComponent("db.user", "ssd");
-        repositoryResource.addComponent("db.password", "ssd");
-        repositoryResource.addComponent("db.databaseName", "xe");
 
         // -------------------------------------------------- setup objects that is injected
         new Expectations() {{
@@ -132,7 +127,7 @@ public class SqlLoaderBatchletTest {
              public void $init(String... command) {
                 // 指定した引数でコンストラクタが実行されていること
                 assertThat(command[0], is("sqlldr"));
-                assertThat(command[1], is("USERID=ssd/ssd@xe"));
+                assertThat(command[1], is("USERID=user/pass@db_name"));
                 assertThat(command[2], is("CONTROL=" + new File("src/test/resources/nablarch/etl/ctl/Person.ctl").getPath()));
                 assertThat(command[3], is("DATA=" + new File("src/test/resources/nablarch/etl/data/Person.csv").getPath()));
                 assertThat(command[4], is("BAD=" + new File(sqlLoaderOutputFileBasePath, "Person.bad").getPath()));
@@ -183,7 +178,7 @@ public class SqlLoaderBatchletTest {
             public void $init(String... command) {
                 // 指定した引数でコンストラクタが実行されていること
                 assertThat(command[0], is("sqlldr"));
-                assertThat(command[1], is("USERID=ssd/ssd@xe"));
+                assertThat(command[1], is("USERID=user/pass@db_name"));
                 assertThat(command[2], is("CONTROL=" + new File("src/test/resources/nablarch/etl/ctl/Person.ctl").getPath()));
                 assertThat(command[3], is("DATA=" + new File("src/test/resources/nablarch/etl/data/Person.csv").getPath()));
                 assertThat(command[4], is("BAD=" + new File(sqlLoaderOutputFileBasePath, "Person.bad").getPath()));
@@ -273,6 +268,33 @@ public class SqlLoaderBatchletTest {
                 containsString("-ERROR- 入力ファイルが存在しません。外部からファイルを受信できているか、"
                         + "ディレクトリやファイルの権限は正しいかを確認してください。入力ファイル=["
                         + new File(inputFilePath, "data").getAbsolutePath() + ']'));
+    }
+
+    /**
+     * {@link SqlLoaderConfig}が存在しない場合、例外が送出されること。
+     */
+    @Test
+    public void sqlLoaderConfigNotFound_shouldThrowException() throws Exception {
+        repositoryResource.addComponent("sqlLoaderConfig", null);
+
+        // -------------------------------------------------- setup objects that is injected
+        final FileToDbStepConfig stepConfig = new FileToDbStepConfig();
+        stepConfig.setBean(Person.class);
+        stepConfig.setFileName("Person.csv");
+
+        final File sqlLoaderOutputFileBasePath = temporaryFolder.newFolder();
+        final SqlLoaderBatchlet sut = new SqlLoaderBatchlet(
+                mockJobContext,
+                mockStepContext,
+                stepConfig,
+                new File("src/test/resources/nablarch/etl/data"),
+                new File("src/test/resources/nablarch/etl/ctl"),
+                sqlLoaderOutputFileBasePath);
+
+        expectedException.expect(IllegalStateException.class);
+        expectedException.expectMessage("SqlLoaderConfig must be registered in SystemRepository. key=[sqlLoaderConfig]");
+
+        sut.process();
     }
 
     @Entity
